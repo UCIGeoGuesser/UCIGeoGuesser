@@ -28,7 +28,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "postcss.config.mjs",
-    "components/GameTimer.jsx"
+    "components/GameTimer.tsx"
   ],
   "exclude": ["node_modules"]
 }

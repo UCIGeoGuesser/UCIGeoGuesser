@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
-// timeLimitInSeconds is an integer in seconds
-// onEnd (function) will be called when time reaches zero (but NOT during render)
-function GameTimer({ timeLimitInSeconds, onEnd }) {
+
+
+interface GameTimerProps {
+  timeLimitInSeconds: number; // timeLimitInSeconds is an integer in seconds
+  onEnd?: () => void; // onEnd (function) will be called when time reaches zero (but NOT during render)
+}
+
+function GameTimer({ timeLimitInSeconds, onEnd }: GameTimerProps) {
   // record the start time for accurate measurements
-  const startRef = useRef(Date.now());
+  const startRef = useRef<number>(Date.now());
 
   // timeLeft is an integer number of seconds remaining
   const [timeLeft, setTimeLeft] = useState(() => timeLimitInSeconds);
 
-  const intervalRef = useRef(null);
-  const onEndRef = useRef(onEnd);
-  const hasEndedRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onEndRef = useRef<(() => void) | undefined>(onEnd);
+  const hasEndedRef = useRef<boolean>(false);
   onEndRef.current = onEnd;
 
   // (re)start timer whenever timeLimitInSeconds changes
@@ -73,11 +78,11 @@ function GameTimer({ timeLimitInSeconds, onEnd }) {
 }
 
 // Helpers (unchanged except ensure they're pure)
-function timeLeftInSeconds(startTime, currentTime, timeLimitInSeconds) {
+function timeLeftInSeconds(startTime: number, currentTime: number, timeLimitInSeconds: number) {
   return timeLimitInSeconds - (currentTime - startTime) / 1000;
 }
 
-function formatTime(time) {
+function formatTime(time: number) {
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60);
   if (seconds < 10) {
