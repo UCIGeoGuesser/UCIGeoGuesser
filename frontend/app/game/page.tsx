@@ -7,9 +7,13 @@ import Guess from "@/components/guess";
 import GameTimer from "@/components/GameTimer";
 import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
+import { useRouter } from "next/navigation";
 
 export default function GameApp() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
+
+  /* Router State */
+  const router = useRouter();
 
   /* Health & Connection States */
   const [isServerHealthy, setIsServerHealthy] = useState<boolean | null>(null);
@@ -30,13 +34,14 @@ export default function GameApp() {
     lng: number;
   } | null>(null);
 
+
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   /* Round / timer */
-  const mapZoom = 14.5;
-  const timeLimit = 60; // seconds
-  const maxRounds = 8;
+  const mapZoom: number = 14.5;
+  const timeLimit: number = 60; // seconds
+  const maxRounds: number = parseInt(process.env.NEXT_PUBLIC_MAX_ROUNDS || "5");
   const [currRound, setCurrRound] = useState<number>(0);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
@@ -80,6 +85,19 @@ export default function GameApp() {
     }
   };
 
+  const playAgain = () => {
+    setHasGuessed(false);
+    setGameOver(false);
+    setLoading(true);
+    setFinalScore(0);
+    setCurrRound(0);
+    setGuessCoords(null);
+    setAnswerCoords(null);
+    setRoundScore(null);
+    startGame();
+  };
+
+
   /* Start a new game by calling the backend */
   const startGame = async () => {
     setLoading(true);
@@ -87,6 +105,8 @@ export default function GameApp() {
     setGuessCoords(null);
     setRoundScore(null);
     setAnswerCoords(null);
+    setCurrRound(0);
+
 
     // Run health check before attempting to initialize a session
     const healthy = await checkServerHealth();
@@ -114,11 +134,13 @@ export default function GameApp() {
       setLoading(false);
 
       // Clear iframe map markers for new game
-      sendToMap({
-        type: "clear",
-        center: [33.645934402549955, -117.84272074704859],
-        zoom: mapZoom,
-      });
+      setTimeout(() => {
+        sendToMap({
+          type: "clear",
+          center: [33.645934402549955, -117.84272074704859],
+          zoom: mapZoom,
+        });
+      }, 100);
     } catch (err: any) {
       console.error("Failed to start game:", err);
       setIsServerHealthy(false);
@@ -253,6 +275,10 @@ export default function GameApp() {
     }
   };
 
+  const returnHome = () => {
+    router.push("/");
+  }
+
   /* Initial load */
   useEffect(() => {
     startGame();
@@ -381,9 +407,9 @@ export default function GameApp() {
 
           {/* GameOver Stats*/}
           {gameOver && (
-            <div className="items-center justify-center bg-gray-600/60 border-white h-32 w-64 rounded-md">
+            <div className="items-center justify-center h-32 w-64 rounded-md">
               <div className="mt-2 text-white text-xl">
-                <GameOver finalScore={finalScore} />
+                <GameOver finalScore={finalScore} onPlayAgain={playAgain} onReturnHome={returnHome} />
               </div>
             </div>
           )}
