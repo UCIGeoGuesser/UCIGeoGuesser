@@ -37,6 +37,9 @@ export default function GameApp() {
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const gameGenerationRef = useRef(0);
+  const gameOverRef = useRef(false);
 
   /* Round / timer */
   const mapZoom: number = 14.5;
@@ -45,6 +48,13 @@ export default function GameApp() {
   const [currRound, setCurrRound] = useState<number>(0);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
+  gameOverRef.current = gameOver;
+
+  const isCurrentGame = (generation: number, sid?: string | null) => {
+    if (generation !== gameGenerationRef.current) return false;
+    if (sid !== undefined && sessionIdRef.current !== sid) return false;
+    return true;
+  };
 
   /* helper to send message to iframe safely */
   const sendToMap = (msg: any) => {
@@ -86,30 +96,28 @@ export default function GameApp() {
   };
 
   const playAgain = () => {
+    startGame();
+  };
+
+  /* Start a new game by calling the backend */
+  const startGame = async () => {
+    gameGenerationRef.current += 1;
+    const generation = gameGenerationRef.current;
+
+    sessionIdRef.current = null;
+    setSessionId(null);
+    setLoading(true);
     setHasGuessed(false);
     setGameOver(false);
-    setLoading(true);
     setFinalScore(0);
     setCurrRound(0);
     setGuessCoords(null);
     setAnswerCoords(null);
     setRoundScore(null);
-    startGame();
-  };
-
-
-  /* Start a new game by calling the backend */
-  const startGame = async () => {
-    setLoading(true);
-    setHasGuessed(false);
-    setGuessCoords(null);
-    setRoundScore(null);
-    setAnswerCoords(null);
-    setCurrRound(0);
-
 
     // Run health check before attempting to initialize a session
     const healthy = await checkServerHealth();
+    if (!isCurrentGame(generation)) return;
     if (!healthy) {
       setLoading(false);
       return;
@@ -128,6 +136,9 @@ export default function GameApp() {
       }
 
       const data = await res.json();
+      if (!isCurrentGame(generation)) return;
+
+      sessionIdRef.current = data.sessionId;
       setSessionId(data.sessionId);
       setCurrRound(data.round);
       setImageSrc(data.imageUrl);
@@ -142,6 +153,7 @@ export default function GameApp() {
         });
       }, 100);
     } catch (err: any) {
+      if (!isCurrentGame(generation)) return;
       console.error("Failed to start game:", err);
       setIsServerHealthy(false);
       setConnectionError(err.message || "Unable to start game server session.");
@@ -151,7 +163,9 @@ export default function GameApp() {
 
   /* Load the next round from the backend */
   const loadNextRound = async () => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     setLoading(true);
     setHasGuessed(false);
@@ -162,8 +176,8 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/get_round`, {
         method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
       });
 
       if (!res.ok) {
@@ -172,6 +186,7 @@ export default function GameApp() {
       }
 
       const data = await res.json();
+      if (!isCurrentGame(generation, sid)) return;
 
       if (data.gameOver) {
         setGameOver(true);
@@ -190,6 +205,7 @@ export default function GameApp() {
         zoom: mapZoom,
       });
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to load round:", err);
       setIsServerHealthy(false);
       setConnectionError("Lost connection to backend server.");
@@ -199,13 +215,15 @@ export default function GameApp() {
 
   /* Submit a guess to the backend */
   const submitGuess = async (lat: number, lng: number) => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     try {
       const res = await fetch(`${backendUrl}/api/submit_guess`, {
         method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId, lat, lng }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid, lat, lng }),
       });
 
       if (!res.ok) {
@@ -214,6 +232,8 @@ export default function GameApp() {
       }
 
       const data = await res.json();
+      if (!isCurrentGame(generation, sid)) return;
+
       setRoundScore(data.score);
       setFinalScore(data.totalScore);
       setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
@@ -229,6 +249,7 @@ export default function GameApp() {
         lng: data.answerLng,
       });
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to submit guess:", err);
       setIsServerHealthy(false);
       setConnectionError(
@@ -239,13 +260,15 @@ export default function GameApp() {
 
   /* Skip a round */
   const skipRound = async () => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     try {
       const res = await fetch(`${backendUrl}/api/skip_round`, {
         method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
       });
 
       if (!res.ok) {
@@ -254,6 +277,8 @@ export default function GameApp() {
       }
 
       const data = await res.json();
+      if (!isCurrentGame(generation, sid)) return;
+
       setRoundScore(0);
       setFinalScore(data.totalScore);
       setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
@@ -269,6 +294,7 @@ export default function GameApp() {
         lng: data.answerLng,
       });
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to skip round:", err);
       setIsServerHealthy(false);
       setConnectionError("Backend server disconnected.");
@@ -292,6 +318,7 @@ export default function GameApp() {
         event.code === "Space" &&
         guessCoords &&
         !hasGuessed &&
+        !gameOver &&
         isServerHealthy
       ) {
         event.preventDefault();
@@ -319,6 +346,7 @@ export default function GameApp() {
 
       switch (msg.type) {
         case "guess":
+          if (gameOverRef.current) return;
           if (typeof msg.lat === "number" && typeof msg.lng === "number") {
             setGuessCoords([msg.lat, msg.lng]);
           }
@@ -357,7 +385,7 @@ export default function GameApp() {
       }}
     >
       {loading && (
-        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40">
           <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
         </div>
       )}
@@ -365,7 +393,7 @@ export default function GameApp() {
       {!loading && (
         <div className="min-h-screen flex flex-col items-center justify-center">
           {/* Top HUD */}
-          <div className="absolute top-2 left-2 bg-gray-500/30 bg-opacity-90 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs">
+          <div className="absolute top-2 left-2 bg-gray-500/30 bg-opacity-90 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs z-20">
             <div className="flex justify-between items-center">
               <h1 className="text-white font-extrabold text-4xl drop-shadow-[px_1px_0px_black]">
                 UCI GeoGuesser
@@ -384,6 +412,7 @@ export default function GameApp() {
             <div className="mt-2 text-white">
               {!gameOver && !hasGuessed ? (
                 <GameTimer
+                  key={`${sessionId ?? "none"}-${currRound}`}
                   timeLimitInSeconds={timeLimit}
                   onEnd={() => {
                     if (!guessCoords) {
@@ -405,23 +434,16 @@ export default function GameApp() {
             )}
           </div>
 
-          {/* GameOver Stats*/}
-          {gameOver && (
-            <div className="items-center justify-center h-32 w-64 rounded-md">
-              <div className="mt-2 text-white text-xl">
-                <GameOver finalScore={finalScore} onPlayAgain={playAgain} onReturnHome={returnHome} />
-              </div>
-            </div>
-          )}
-
           {/* iframe map in corner */}
           <div
-            className="absolute bottom-2 right-2 transition-all duration-300 ease-in-out"
+            className={`absolute bottom-2 right-2 transition-all duration-300 ease-in-out ${gameOver ? "pointer-events-none" : ""}`}
             style={{
-              height: isHovering ? "500px" : "325px",
-              width: isHovering ? "500px" : "325px",
+              height: isHovering && !gameOver ? "500px" : "325px",
+              width: isHovering && !gameOver ? "500px" : "325px",
             }}
-            onMouseEnter={() => setIsHovering(true)}
+            onMouseEnter={() => {
+              if (!gameOver) setIsHovering(true);
+            }}
             onMouseLeave={() => setIsHovering(false)}
           >
             <iframe
@@ -456,6 +478,16 @@ export default function GameApp() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {gameOver && !loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <GameOver
+            finalScore={finalScore}
+            onPlayAgain={playAgain}
+            onReturnHome={returnHome}
+          />
         </div>
       )}
     </div>

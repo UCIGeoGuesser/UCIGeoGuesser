@@ -10,11 +10,15 @@ function GameTimer({ timeLimitInSeconds, onEnd }) {
   const [timeLeft, setTimeLeft] = useState(() => timeLimitInSeconds);
 
   const intervalRef = useRef(null);
+  const onEndRef = useRef(onEnd);
+  const hasEndedRef = useRef(false);
+  onEndRef.current = onEnd;
 
   // (re)start timer whenever timeLimitInSeconds changes
   useEffect(() => {
     // reset start time and visible time
     startRef.current = Date.now();
+    hasEndedRef.current = false;
     setTimeLeft(timeLimitInSeconds);
 
     // clear any existing interval
@@ -51,16 +55,15 @@ function GameTimer({ timeLimitInSeconds, onEnd }) {
     };
   }, [timeLimitInSeconds]);
 
-  // Call onEnd from an effect when timeLeft becomes 0.
-  // This guarantees the call happens after render (safe).
+  // Fire onEnd only when time actually hits 0, not when the parent
+  // re-renders and passes a new onEnd function identity.
   useEffect(() => {
-    if (timeLeft <= 0) {
-      // defer the call to avoid any render-time state updates issues in parent
-      Promise.resolve().then(() => {
-        onEnd?.();
-      });
-    }
-  }, [timeLeft, onEnd]);
+    if (timeLeft > 0 || hasEndedRef.current) return;
+    hasEndedRef.current = true;
+    Promise.resolve().then(() => {
+      onEndRef.current?.();
+    });
+  }, [timeLeft]);
 
   if (timeLeft <= 0) {
     return null;
