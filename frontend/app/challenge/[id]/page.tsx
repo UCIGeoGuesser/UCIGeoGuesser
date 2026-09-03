@@ -1,10 +1,16 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import GameTimer from "../../GameTimer";
-import Guess from "../../guess";
-import Results from "../../results";
+import GameTimer from "../../../components/GameTimer";
+import Guess from "../../../components/guess";
 import ChallengeResults from "../../ChallengeResults";
 import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
@@ -18,15 +24,19 @@ import {
 
 const mapZoom = 14.5;
 const timeLimit = 60;
-const CAMPUS_CENTER: [number, number] = [33.645934402549955, -117.84272074704859];
+const CAMPUS_CENTER: [number, number] = [
+  33.645934402549955, -117.84272074704859,
+];
 
 function storageKey(id: string, suffix: string) {
   return `ucigg:challenge:${id}:${suffix}`;
 }
 
 function resolveRole(id: string, queryRole: string | null): ChallengeRole {
-  if (queryRole === "creator" || queryRole === "invitee") return queryRole;
-  const stored = typeof window !== "undefined" ? localStorage.getItem(storageKey(id, "role")) : null;
+  const stored =
+    typeof window !== "undefined"
+      ? localStorage.getItem(storageKey(id, "role"))
+      : null;
   if (stored === "creator" || stored === "invitee") return stored;
   return "invitee";
 }
@@ -42,7 +52,9 @@ function ChallengePageInner() {
   const [role, setRole] = useState<ChallengeRole>("invitee");
   const [challenge, setChallenge] = useState<ChallengePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"loading" | "share" | "playing" | "results">("loading");
+  const [phase, setPhase] = useState<
+    "loading" | "share" | "playing" | "results"
+  >("loading");
 
   const [roundIndex, setRoundIndex] = useState(0);
   const [guesses, setGuesses] = useState<GuessPayload[]>([]);
@@ -51,7 +63,9 @@ function ChallengePageInner() {
   const [pendingGuess, setPendingGuess] = useState<GuessPayload | null>(null);
   const [isHovering, setIsHovering] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [roundBreakdowns, setRoundBreakdowns] = useState<RoundBreakdown[] | undefined>();
+  const [roundBreakdowns, setRoundBreakdowns] = useState<
+    RoundBreakdown[] | undefined
+  >();
   const [copied, setCopied] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -65,7 +79,8 @@ function ChallengePageInner() {
   const images = challenge?.images ?? [];
   const maxRounds = images.length;
   const currentImage = images[roundIndex];
-  const opponentRole: ChallengeRole = role === "creator" ? "invitee" : "creator";
+  const opponentRole: ChallengeRole =
+    role === "creator" ? "invitee" : "creator";
 
   const sendToMap = (msg: object) => {
     iframeRef.current?.contentWindow?.postMessage(msg, "*");
@@ -106,8 +121,12 @@ function ChallengePageInner() {
           return;
         }
 
-        const savedGuesses = sessionStorage.getItem(storageKey(challengeId, "guesses"));
-        const savedRound = sessionStorage.getItem(storageKey(challengeId, "round"));
+        const savedGuesses = sessionStorage.getItem(
+          storageKey(challengeId, "guesses"),
+        );
+        const savedRound = sessionStorage.getItem(
+          storageKey(challengeId, "round"),
+        );
         if (savedGuesses) {
           try {
             setGuesses(JSON.parse(savedGuesses));
@@ -117,7 +136,9 @@ function ChallengePageInner() {
         }
         if (savedRound) setRoundIndex(Number(savedRound) || 0);
 
-        const started = sessionStorage.getItem(storageKey(challengeId, "started"));
+        const started = sessionStorage.getItem(
+          storageKey(challengeId, "started"),
+        );
         if (resolvedRole === "creator" && !started) {
           setPhase("share");
         } else {
@@ -125,7 +146,9 @@ function ChallengePageInner() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load challenge.");
+          setLoadError(
+            err instanceof Error ? err.message : "Failed to load challenge.",
+          );
           setPhase("loading");
         }
       }
@@ -138,7 +161,9 @@ function ChallengePageInner() {
 
   useEffect(() => {
     if (phase !== "results") return;
-    const opponentDone = Boolean(challenge?.attempts?.[opponentRole]?.completed);
+    const opponentDone = Boolean(
+      challenge?.attempts?.[opponentRole]?.completed,
+    );
     if (opponentDone) return;
     const timer = setInterval(async () => {
       try {
@@ -154,7 +179,11 @@ function ChallengePageInner() {
   useEffect(() => {
     function onMessage(ev: MessageEvent) {
       const msg = ev.data || {};
-      if (msg?.type === "guess" && typeof msg.lat === "number" && typeof msg.lng === "number") {
+      if (
+        msg?.type === "guess" &&
+        typeof msg.lat === "number" &&
+        typeof msg.lng === "number"
+      ) {
         setGuessCoords([msg.lat, msg.lng]);
       }
     }
@@ -163,18 +192,24 @@ function ChallengePageInner() {
   }, []);
 
   const persistProgress = (nextGuesses: GuessPayload[], nextRound: number) => {
-    sessionStorage.setItem(storageKey(challengeId, "guesses"), JSON.stringify(nextGuesses));
+    sessionStorage.setItem(
+      storageKey(challengeId, "guesses"),
+      JSON.stringify(nextGuesses),
+    );
     sessionStorage.setItem(storageKey(challengeId, "round"), String(nextRound));
   };
 
   const finishChallenge = async (finalGuesses: GuessPayload[]) => {
     setSubmitting(true);
     try {
-      const res = await fetch(`${backendUrl}/api/challenges/${challengeId}/attempts`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ role, guesses: finalGuesses }),
-      });
+      const res = await fetch(
+        `${backendUrl}/api/challenges/${challengeId}/attempts`,
+        {
+          method: "POST",
+          headers: apiHeaders(true),
+          body: JSON.stringify({ role, guesses: finalGuesses }),
+        },
+      );
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         if (res.status === 409) {
@@ -192,7 +227,9 @@ function ChallengePageInner() {
       sessionStorage.removeItem(storageKey(challengeId, "round"));
       setPhase("results");
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : "Failed to submit challenge.");
+      setLoadError(
+        err instanceof Error ? err.message : "Failed to submit challenge.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +240,10 @@ function ChallengePageInner() {
     advancingRef.current = true;
 
     const nextGuesses = maybeGuess
-      ? [...guesses.filter((g) => g.displayOrder !== maybeGuess.displayOrder), maybeGuess]
+      ? [
+          ...guesses.filter((g) => g.displayOrder !== maybeGuess.displayOrder),
+          maybeGuess,
+        ]
       : guesses;
     setGuesses(nextGuesses);
     setHasGuessed(true);
@@ -277,7 +317,9 @@ function ChallengePageInner() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6 text-center">
         <div className="bg-gray-800 border border-red-500/30 rounded-xl p-8 max-w-md">
-          <h1 className="text-2xl font-bold text-red-400 mb-2">Couldn’t load challenge</h1>
+          <h1 className="text-2xl font-bold text-red-400 mb-2">
+            Couldn’t load challenge
+          </h1>
           <p className="text-gray-300 text-sm mb-6">{loadError}</p>
           <button
             onClick={() => router.push("/")}
@@ -303,9 +345,10 @@ function ChallengePageInner() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-yellow-300 to-blue-950 text-white p-6 text-center">
         <h1 className="text-4xl font-extrabold mb-3">Challenge created</h1>
         <p className="max-w-md mb-4 text-white/90">
-          Send this link to a friend. You both get the same {maxRounds} photos. Scores compare when you both finish.
+          Send this link to a friend. You both get the same {maxRounds} photos.
+          Scores compare when you both finish.
         </p>
-        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm max-w-lg mb-3 overflow-x-auto whitespace-nowrap">
+        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm break-all max-w-lg mb-3">
           {shareUrl}
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -347,7 +390,9 @@ function ChallengePageInner() {
     <div
       className="min-h-screen w-full relative"
       style={{
-        backgroundImage: currentImage ? `url(${currentImage.imageUrl})` : undefined,
+        backgroundImage: currentImage
+          ? `url(${currentImage.imageUrl})`
+          : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#0f172a",
@@ -361,7 +406,9 @@ function ChallengePageInner() {
 
       <div className="absolute top-2 left-2 bg-gray-500/30 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs">
         <div className="flex justify-between items-center">
-          <h1 className="text-white font-extrabold text-2xl drop-shadow">1v1 Challenge</h1>
+          <h1 className="text-white font-extrabold text-2xl drop-shadow">
+            1v1 Challenge
+          </h1>
           <div className="text-white text-lg">
             <span className="font-bold">Round: </span>
             {Math.min(roundIndex + 1, maxRounds)}/{maxRounds}
@@ -380,7 +427,10 @@ function ChallengePageInner() {
           </div>
         )}
         {role === "creator" && (
-          <button onClick={copyLink} className="mt-2 text-xs text-white/90 underline block mx-auto">
+          <button
+            onClick={copyLink}
+            className="mt-2 text-xs text-white/90 underline block mx-auto"
+          >
             {copied ? "Link copied" : "Copy invite link"}
           </button>
         )}

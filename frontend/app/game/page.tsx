@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-import Results from "../results";
-import Guess from "../guess";
-import GameTimer from "../GameTimer";
-import GameOver from "../GameOver";
-import { apiHeaders, getBackendUrl } from "../lib/backend";
-import { MAP_BUTTON_SLOT } from "../lib/layout";
+import Results from "@/components/results";
+import Guess from "@/components/guess";
+import GameTimer from "@/components/GameTimer";
+import GameOver from "@/components/GameOver";
+import ConnectionError from "@/components/ConnectionError";
 
 export default function GameApp() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
@@ -26,7 +25,10 @@ export default function GameApp() {
   /* Session state */
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roundScore, setRoundScore] = useState<number | null>(null);
-  const [answerCoords, setAnswerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [answerCoords, setAnswerCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -52,11 +54,14 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/health_check`, {
         method: "GET",
-        signal: AbortSignal.timeout(4000),
-        headers: apiHeaders(),
+        signal: AbortSignal.timeout(4000), // Timeout after 4s
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+        },
       });
 
-      if (!res.ok) throw new Error(`Health check returned status ${res.status}`);
+      if (!res.ok)
+        throw new Error(`Health check returned status ${res.status}`);
 
       const data = await res.json();
       if (data?.status === "ok") {
@@ -68,7 +73,9 @@ export default function GameApp() {
     } catch (err: any) {
       console.error("Health check failed:", err);
       setIsServerHealthy(false);
-      setConnectionError("Something went wrong on our end or your connection dropped.");
+      setConnectionError(
+        "Something went wrong on our end or your connection dropped.",
+      );
       return false;
     }
   };
@@ -202,7 +209,9 @@ export default function GameApp() {
     } catch (err: any) {
       console.error("Failed to submit guess:", err);
       setIsServerHealthy(false);
-      setConnectionError("Failed to submit guess. Backend server is unreachable.");
+      setConnectionError(
+        "Failed to submit guess. Backend server is unreachable.",
+      );
     }
   };
 
@@ -253,10 +262,20 @@ export default function GameApp() {
   /* Keyboard handlers */
   useEffect(() => {
     const KeyPressHandler = (event: KeyboardEvent) => {
-      if (event.code === "Space" && guessCoords && !hasGuessed && isServerHealthy) {
+      if (
+        event.code === "Space" &&
+        guessCoords &&
+        !hasGuessed &&
+        isServerHealthy
+      ) {
         event.preventDefault();
         submitGuess(guessCoords[0], guessCoords[1]);
-      } else if (event.code === "Space" && hasGuessed && !gameOver && isServerHealthy) {
+      } else if (
+        event.code === "Enter" &&
+        hasGuessed &&
+        !gameOver &&
+        isServerHealthy
+      ) {
         event.preventDefault();
         loadNextRound();
       }
@@ -289,23 +308,14 @@ export default function GameApp() {
   /* Connection Error Screen UI */
   if (isServerHealthy === false) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6 text-center">
-        <div className="bg-gray-800 border border-red-500/30 rounded-xl p-8 max-w-md shadow-2xl">
-          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            ⚠️
-          </div>
-          <h1 className="text-2xl font-bold text-red-400 mb-2">Server Unreachable</h1>
-          <p className="text-gray-300 text-sm mb-6">
-            {connectionError || "The game server failed to respond. Please try again later."}
-          </p>
-          <button
-            onClick={startGame}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 transition text-white font-semibold rounded-lg shadow-lg"
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
+      <ConnectionError
+        message={connectionError || "Lost connection to backend server."}
+        onRetry={() => {
+          setIsServerHealthy(null);
+          setConnectionError(null);
+          startGame();
+        }}
+      />
     );
   }
 
@@ -424,7 +434,4 @@ export default function GameApp() {
       )}
     </div>
   );
-
-
-
 }
