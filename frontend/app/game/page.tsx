@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useRef } from "react";
 
 import Results from "@/components/results";
-import Guess from "@/components/guess";
 import GameTimer from "@/components/GameTimer";
 import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
 import { useRouter } from "next/navigation";
+import GuessButton from "@/components/GuessButton";
 
 export default function GameApp() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
@@ -33,7 +33,6 @@ export default function GameApp() {
     lat: number;
     lng: number;
   } | null>(null);
-
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -303,7 +302,7 @@ export default function GameApp() {
 
   const returnHome = () => {
     router.push("/");
-  }
+  };
 
   /* Initial load */
   useEffect(() => {
@@ -458,12 +457,22 @@ export default function GameApp() {
               title="GeoGuesser Map"
               sandbox="allow-scripts allow-same-origin allow-forms"
             />
-            {guessCoords && !hasGuessed && (
-              <div style={MAP_BUTTON_SLOT}>
-                <Guess
+            {!gameOver && (hasGuessed || guessCoords) && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "10%",
+                  left: "47%",
+                  transform: "translateX(-25%)",
+                  fontSize: 20,
+                  zIndex: 400,
+                }}
+              >
+                <GuessButton
                   onGuess={() => {
-                    submitGuess(guessCoords[0], guessCoords[1]);
+                    guessCoords && submitGuess(guessCoords[0], guessCoords[1]);
                   }}
+                  moveToNextRound={loadNextRound}
                   hasGuessed={hasGuessed}
                 />
               </div>

@@ -9,8 +9,8 @@ import React, {
   useState,
 } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import GameTimer from "../../../components/GameTimer";
-import Guess from "../../../components/guess";
+import GameTimer from "@/components/GameTimer";
+import GuessButton from "@/components/GuessButton";
 import ChallengeResults from "../../ChallengeResults";
 import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
@@ -452,9 +452,18 @@ function ChallengePageInner() {
           title="GeoGuesser Map"
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
-        {guessCoords && !hasGuessed && (
-          <div style={MAP_BUTTON_SLOT}>
-            <Guess onGuess={confirmGuess} hasGuessed={hasGuessed} />
+        {(hasGuessed || guessCoords) && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "10%",
+              left: "47%",
+              transform: "translateX(-25%)",
+              fontSize: 20,
+              zIndex: 400,
+            }}
+          >
+            <GuessButton onGuess={confirmGuess} moveToNextRound={goNext} hasGuessed={hasGuessed} />
           </div>
         )}
         {hasGuessed && !submitting && (
