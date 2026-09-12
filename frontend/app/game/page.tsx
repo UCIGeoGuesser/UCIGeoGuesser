@@ -8,9 +8,11 @@ import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
 import { useRouter } from "next/navigation";
 import GuessButton from "@/components/GuessButton";
+import { env } from "@/env/client"
 
 export default function GameApp() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
+  /* Backend URL */
+  const backendUrl = env.NEXT_PUBLIC_BACKEND_URL;
 
   /* Router State */
   const router = useRouter();
@@ -42,8 +44,8 @@ export default function GameApp() {
 
   /* Round / timer */
   const mapZoom: number = 14.5;
-  const timeLimit: number = 60; // seconds
-  const maxRounds: number = parseInt(process.env.NEXT_PUBLIC_MAX_ROUNDS || "5");
+  const timeLimit: number = env.NEXT_PUBLIC_TIME_LIMIT; 
+  const maxRounds: number = env.NEXT_PUBLIC_MAX_ROUNDS;
   const [currRound, setCurrRound] = useState<number>(0);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
