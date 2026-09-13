@@ -1,6 +1,6 @@
 "use client";
 
-import React, {
+import {
   Suspense,
   useCallback,
   useEffect,
@@ -14,19 +14,16 @@ import GuessButton from "@/components/GuessButton";
 import ChallengeResults from "../../ChallengeResults";
 import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
-  apiHeaders,
-  getBackendUrl,
   type ChallengePayload,
   type ChallengeRole,
   type GuessPayload,
   type RoundBreakdown,
 } from "../../lib/backend";
+import sendAPICall from "@/app/lib/apiCalls";
+import { apiRouters } from "@/app/lib/apiRoutes";
+import { gameConfig } from "@/app/lib/gameConfig";
 
-const mapZoom = 14.5;
-const timeLimit = 60;
-const CAMPUS_CENTER: [number, number] = [
-  33.645934402549955, -117.84272074704859,
-];
+
 
 function storageKey(id: string, suffix: string) {
   return `ucigg:challenge:${id}:${suffix}`;
@@ -45,9 +42,7 @@ function ChallengePageInner() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const rawId = params.id;
-  const challengeId = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
-  const backendUrl = getBackendUrl();
+  const challengeId = params.id;
 
   const [role, setRole] = useState<ChallengeRole>("invitee");
   const [challenge, setChallenge] = useState<ChallengePayload | null>(null);
@@ -87,16 +82,18 @@ function ChallengePageInner() {
   };
 
   const fetchChallenge = useCallback(async () => {
-    const res = await fetch(`${backendUrl}/api/challenges/${challengeId}`, {
-      headers: apiHeaders(),
-    });
-    if (res.status === 404) throw new Error("Challenge not found.");
-    if (!res.ok) {
-      const errData = await res.json().catch(() => null);
-      throw new Error(errData?.error || `Server error: ${res.status}`);
-    }
-    return (await res.json()) as ChallengePayload;
-  }, [backendUrl, challengeId]);
+    // const res = await fetch(`${backendUrl}/api/challenges/${challengeId}`, {
+    //   headers: apiHeaders(),
+    // });
+    // if (res.status === 404) throw new Error("Challenge not found.");
+    // if (!res.ok) {
+    //   const errData = await res.json().catch(() => null);
+    //   throw new Error(errData?.error || `Server error: ${res.status}`);
+    // }
+    // return (await res.json()) as ChallengePayload;
+    return (await sendAPICall({route: apiRouters.getChallenge, param: challengeId})) as ChallengePayload;
+
+  }, [challengeId]);
 
   useEffect(() => {
     if (!challengeId) return;
@@ -202,24 +199,25 @@ function ChallengePageInner() {
   const finishChallenge = async (finalGuesses: GuessPayload[]) => {
     setSubmitting(true);
     try {
-      const res = await fetch(
-        `${backendUrl}/api/challenges/${challengeId}/attempts`,
-        {
-          method: "POST",
-          headers: apiHeaders(true),
-          body: JSON.stringify({ role, guesses: finalGuesses }),
-        },
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        if (res.status === 409) {
-          const refreshed = await fetchChallenge();
-          setChallenge(refreshed);
-          setPhase("results");
-          return;
-        }
-        throw new Error(data?.error || `Server error: ${res.status}`);
-      }
+      // const res = await fetch(
+      //   `${backendUrl}/api/challenges/${challengeId}/attempts`,
+      //   {
+      //     method: "POST",
+      //     headers: apiHeaders(true),
+      //     body: JSON.stringify({ role, guesses: finalGuesses }),
+      //   },
+      // );
+      // const data = await res.json().catch(() => null);
+      // if (!res.ok) {
+      //   if (res.status === 409) {
+      //     const refreshed = await fetchChallenge();
+      //     setChallenge(refreshed);
+      //     setPhase("results");
+      //     return;
+      //   }
+      //   throw new Error(data?.error || `Server error: ${res.status}`);
+      // }
+      const data = await sendAPICall({route: apiRouters.finishChallenge, param: challengeId, payload: {"role": role, "guesses": finalGuesses}});
       setRoundBreakdowns(data.roundBreakdowns);
       const refreshed = await fetchChallenge();
       setChallenge(refreshed);
@@ -261,7 +259,7 @@ function ChallengePageInner() {
     setGuessCoords(null);
     setHasGuessed(false);
     setPendingGuess(null);
-    sendToMap({ type: "clear", center: CAMPUS_CENTER, zoom: mapZoom });
+    sendToMap({ type: "clear", center: gameConfig.mapCenter, zoom: gameConfig.mapZoom });
     advancingRef.current = false;
   };
 
@@ -418,7 +416,7 @@ function ChallengePageInner() {
           <div className="mt-2 text-white">
             <GameTimer
               key={roundIndex}
-              timeLimitInSeconds={timeLimit}
+              timeLimitInSeconds={gameConfig.timeLimit}
               onEnd={() => {
                 if (!guessCoords) skipRound();
                 else confirmGuess();

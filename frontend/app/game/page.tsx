@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import Results from "@/components/results";
 import GameTimer from "@/components/GameTimer";
@@ -8,11 +8,11 @@ import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
 import { useRouter } from "next/navigation";
 import GuessButton from "@/components/GuessButton";
-import { env } from "@/env/client"
+import { gameConfig } from "../lib/gameConfig";
+import sendAPICall from "../lib/apiCalls";
+import { apiRouters } from "../lib/apiRoutes";
 
 export default function GameApp() {
-  /* Backend URL */
-  const backendUrl = env.NEXT_PUBLIC_BACKEND_URL;
 
   /* Router State */
   const router = useRouter();
@@ -31,10 +31,7 @@ export default function GameApp() {
   /* Session state */
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roundScore, setRoundScore] = useState<number | null>(null);
-  const [answerCoords, setAnswerCoords] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -42,10 +39,7 @@ export default function GameApp() {
   const gameGenerationRef = useRef(0);
   const gameOverRef = useRef(false);
 
-  /* Round / timer */
-  const mapZoom: number = 14.5;
-  const timeLimit: number = env.NEXT_PUBLIC_TIME_LIMIT; 
-  const maxRounds: number = env.NEXT_PUBLIC_MAX_ROUNDS;
+  /* Round Use States */
   const [currRound, setCurrRound] = useState<number>(0);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
@@ -65,21 +59,21 @@ export default function GameApp() {
     }
   };
 
+  const resetMap = () => {
+    setTimeout(() => {
+        sendToMap({
+          type: "clear",
+          center: gameConfig.mapCenter,
+          zoom: gameConfig.mapZoom,
+        });
+      }, 100);
+  }
+
   /* Health Check ping to backend */
   const checkServerHealth = async (): Promise<boolean> => {
     try {
-      const res = await fetch(`${backendUrl}/api/health_check`, {
-        method: "GET",
-        signal: AbortSignal.timeout(4000), // Timeout after 4s
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
+      const data = await sendAPICall({route: apiRouters.healthCheck});
 
-      if (!res.ok)
-        throw new Error(`Health check returned status ${res.status}`);
-
-      const data = await res.json();
       if (data?.status === "ok") {
         setIsServerHealthy(true);
         setConnectionError(null);
@@ -100,6 +94,8 @@ export default function GameApp() {
     startGame();
   };
 
+  
+
   /* Start a new game by calling the backend */
   const startGame = async () => {
     gameGenerationRef.current += 1;
@@ -113,7 +109,6 @@ export default function GameApp() {
     setFinalScore(0);
     setCurrRound(0);
     setGuessCoords(null);
-    setAnswerCoords(null);
     setRoundScore(null);
 
     // Run health check before attempting to initialize a session
@@ -125,18 +120,8 @@ export default function GameApp() {
     }
 
     try {
-      const res = await fetch(`${backendUrl}/api/start_game`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ totalRounds: maxRounds }),
-      });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await sendAPICall({route: apiRouters.startGame, payload: { "totalRounds": gameConfig.maxRounds }});
       if (!isCurrentGame(generation)) return;
 
       sessionIdRef.current = data.sessionId;
@@ -146,13 +131,8 @@ export default function GameApp() {
       setLoading(false);
 
       // Clear iframe map markers for new game
-      setTimeout(() => {
-        sendToMap({
-          type: "clear",
-          center: [33.645934402549955, -117.84272074704859],
-          zoom: mapZoom,
-        });
-      }, 100);
+      resetMap();
+      
     } catch (err: any) {
       if (!isCurrentGame(generation)) return;
       console.error("Failed to start game:", err);
@@ -172,21 +152,10 @@ export default function GameApp() {
     setHasGuessed(false);
     setGuessCoords(null);
     setRoundScore(null);
-    setAnswerCoords(null);
 
     try {
-      const res = await fetch(`${backendUrl}/api/get_round`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid }),
-      });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await sendAPICall({route: apiRouters.getRound, payload: {"sessionId": sid}});
       if (!isCurrentGame(generation, sid)) return;
 
       if (data.gameOver) {
@@ -200,11 +169,7 @@ export default function GameApp() {
       setImageSrc(data.imageUrl);
       setLoading(false);
 
-      sendToMap({
-        type: "clear",
-        center: [33.645934402549955, -117.84272074704859],
-        zoom: mapZoom,
-      });
+      resetMap();
     } catch (err: any) {
       if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to load round:", err);
@@ -221,23 +186,12 @@ export default function GameApp() {
     const generation = gameGenerationRef.current;
 
     try {
-      const res = await fetch(`${backendUrl}/api/submit_guess`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid, lat, lng }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      
+      const data = await sendAPICall({route: apiRouters.submitGuess, payload: {"sessionId": sid, "lat": lat, "lng": lng}});
       if (!isCurrentGame(generation, sid)) return;
 
       setRoundScore(data.score);
       setFinalScore(data.totalScore);
-      setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
       setHasGuessed(true);
 
       if (data.gameOver) {
@@ -266,23 +220,12 @@ export default function GameApp() {
     const generation = gameGenerationRef.current;
 
     try {
-      const res = await fetch(`${backendUrl}/api/skip_round`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      
+      const data = await sendAPICall({route: apiRouters.skipRound, payload: {"sessionId": sid}});
       if (!isCurrentGame(generation, sid)) return;
 
       setRoundScore(0);
       setFinalScore(data.totalScore);
-      setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
       setHasGuessed(true);
 
       if (data.gameOver) {
@@ -404,7 +347,7 @@ export default function GameApp() {
                   <span className="font-bold">Round: </span>
                   <span>
                     {" "}
-                    {currRound}/{maxRounds}{" "}
+                    {currRound}/{gameConfig.maxRounds}{" "}
                   </span>
                 </div>
               </div>
@@ -414,7 +357,7 @@ export default function GameApp() {
               {!gameOver && !hasGuessed ? (
                 <GameTimer
                   key={`${sessionId ?? "none"}-${currRound}`}
-                  timeLimitInSeconds={timeLimit}
+                  timeLimitInSeconds={gameConfig.timeLimit}
                   onEnd={() => {
                     if (!guessCoords) {
                       // Timer expired with no guess — skip the round

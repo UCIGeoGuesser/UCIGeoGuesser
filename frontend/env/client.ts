@@ -12,6 +12,5 @@ export const env = createEnv({
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL,
     NEXT_PUBLIC_MAX_ROUNDS: process.env.NEXT_PUBLIC_MAX_ROUNDS,
     NEXT_PUBLIC_TIME_LIMIT: process.env.NEXT_PUBLIC_TIME_LIMIT,
-  }
-
+  },
 });
