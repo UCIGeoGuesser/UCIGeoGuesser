@@ -6,10 +6,11 @@ import Results from "@/components/results";
 import GameTimer from "@/components/GameTimer";
 import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
-import { useRouter } from "next/navigation";
 import GuessButton from "@/components/GuessButton";
-import { gameConfig } from "../lib/gameConfig";
 import sendAPICall from "../lib/apiCalls";
+import Loading from "@/app/loading";
+import { gameConfig } from "../lib/gameConfig";
+import { useRouter } from "next/navigation";
 import { apiRouters } from "../lib/apiRoutes";
 
 export default function GameApp() {
@@ -317,6 +318,12 @@ export default function GameApp() {
     );
   }
 
+  if (loading) {
+    return (
+      <Loading/>
+    )
+  }
+
   /* Regular Game View */
   return (
     <div
@@ -328,13 +335,9 @@ export default function GameApp() {
         backgroundColor: "#0f172a",
       }}
     >
-      {loading && (
-        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
+      
 
-      {!loading && (
+      {(
         <div className="min-h-screen flex flex-col items-center justify-center">
           {/* Top HUD */}
           <div className="absolute top-2 left-2 bg-gray-500/30 bg-opacity-90 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs z-20">
@@ -435,7 +438,7 @@ export default function GameApp() {
         </div>
       )}
 
-      {gameOver && !loading && (
+      {gameOver && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <GameOver
             finalScore={finalScore}

@@ -22,6 +22,7 @@ import {
 import sendAPICall from "@/app/lib/apiCalls";
 import { apiRouters } from "@/app/lib/apiRoutes";
 import { gameConfig } from "@/app/lib/gameConfig";
+import Loading from "@/app/loading";
 
 
 
@@ -332,9 +333,7 @@ function ChallengePageInner() {
 
   if (phase === "loading" || !challenge) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-      </div>
+     <Loading/>
     );
   }
 
@@ -479,13 +478,7 @@ function ChallengePageInner() {
 
 export default function ChallengePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<Loading/>}>
       <ChallengePageInner />
     </Suspense>
   );
