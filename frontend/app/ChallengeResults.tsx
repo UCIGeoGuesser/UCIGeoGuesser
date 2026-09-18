@@ -51,7 +51,7 @@ export default function ChallengeResults({
           <p className="text-sm text-white/70 mt-1">
             Send them this link. This page updates when they finish.
           </p>
-          <p className="mt-2 text-xs break-all text-yellow-200">{shareUrl}</p>
+          <p className="mt-2 text-xs text-yellow-200 overflow-x-auto whitespace-nowrap">{shareUrl}</p>
         </div>
       )}
 

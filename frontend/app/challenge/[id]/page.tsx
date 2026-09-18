@@ -23,9 +23,9 @@ function storageKey(id: string, suffix: string) {
 }
 
 function resolveRole(id: string, queryRole: string | null): ChallengeRole {
+  if (queryRole === "creator" || queryRole === "invitee") return queryRole;
   const stored = typeof window !== "undefined" ? localStorage.getItem(storageKey(id, "role")) : null;
   if (stored === "creator" || stored === "invitee") return stored;
-  if (queryRole === "creator") return "creator";
   return "invitee";
 }
 
@@ -33,7 +33,8 @@ function ChallengePageInner() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const challengeId = params.id;
+  const rawId = params.id;
+  const challengeId = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
   const backendUrl = getBackendUrl();
 
   const [role, setRole] = useState<ChallengeRole>("invitee");
@@ -81,16 +82,21 @@ function ChallengePageInner() {
   }, [backendUrl, challengeId]);
 
   useEffect(() => {
+    if (!challengeId) return;
     let cancelled = false;
     const boot = async () => {
       try {
         const resolvedRole = resolveRole(challengeId, searchParams.get("role"));
         localStorage.setItem(storageKey(challengeId, "role"), resolvedRole);
-        if (!cancelled) setRole(resolvedRole);
+        if (!cancelled) {
+          setRole(resolvedRole);
+          setLoadError(null);
+        }
 
         const data = await fetchChallenge();
         if (cancelled) return;
         setChallenge(data);
+        setLoadError(null);
 
         const myAttempt = data.attempts?.[resolvedRole];
         if (myAttempt?.completed) {
@@ -297,7 +303,9 @@ function ChallengePageInner() {
         <p className="max-w-md mb-4 text-white/90">
           Send this link to a friend. You both get the same {maxRounds} photos. Scores compare when you both finish.
         </p>
-        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm break-all max-w-lg mb-3">{shareUrl}</p>
+        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm max-w-lg mb-3 overflow-x-auto whitespace-nowrap">
+          {shareUrl}
+        </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={copyLink}
