@@ -6,10 +6,10 @@ import Results from "../results";
 import Guess from "../guess";
 import GameTimer from "../GameTimer";
 import GameOver from "../GameOver";
+import { apiHeaders, getBackendUrl } from "../lib/backend";
 
 export default function GameApp() {
-  /* Backend URL */
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
 
   /* Health & Connection States */
   const [isServerHealthy, setIsServerHealthy] = useState<boolean | null>(null);
@@ -49,13 +49,10 @@ export default function GameApp() {
   /* Health Check ping to backend */
   const checkServerHealth = async (): Promise<boolean> => {
     try {
-      console.log(`${backendUrl}/api/health_check`);
       const res = await fetch(`${backendUrl}/api/health_check`, {
         method: "GET",
-        signal: AbortSignal.timeout(4000), // Timeout after 4s
-        headers: {
-    'ngrok-skip-browser-warning': 'true',
-        },
+        signal: AbortSignal.timeout(4000),
+        headers: apiHeaders(),
       });
 
       if (!res.ok) throw new Error(`Health check returned status ${res.status}`);
@@ -93,7 +90,7 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/start_game`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders(true),
         body: JSON.stringify({ totalRounds: maxRounds }),
       });
 
@@ -135,7 +132,7 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/get_round`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders(true),
         body: JSON.stringify({ sessionId }),
       });
 
@@ -177,7 +174,7 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/submit_guess`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders(true),
         body: JSON.stringify({ sessionId, lat, lng }),
       });
 
@@ -215,7 +212,7 @@ export default function GameApp() {
     try {
       const res = await fetch(`${backendUrl}/api/skip_round`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders(true),
         body: JSON.stringify({ sessionId }),
       });
 

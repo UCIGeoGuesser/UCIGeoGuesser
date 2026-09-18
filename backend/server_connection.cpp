@@ -5,7 +5,6 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <filesystem>
 #include <mutex>
 #include <random>
 #include <algorithm>
@@ -13,6 +12,7 @@
 #include <chrono>
 #include <iostream>
 #include "upload_images.cpp"
+#include "db/db_connection.hpp"
 #include <pqxx/pqxx>
 
 // ──────────────────────────────────────────────
@@ -63,26 +63,15 @@ int main() {
         .headers("Content-Type", "ngrok-skip-browser-warning", "Authorization");
 
     /* Constants */
-    const string IMAGE_DIRECTORY = "./res";
-    const string METADATA_SUFFIX = "supplemental-metadata.json";
     const int MAX_ROUNDS = 25;
 
     /* Initialize database connection */
-    const char* db_url = getenv("DATABASE_URL");
-    if (db_url == nullptr) {
-        cerr << "FATAL: DATABASE_URL environment variable not set." << endl;
+    try {
+        g_db_connection_string = get_database_url();
+    } catch (const std::exception& e) {
+        cerr << "FATAL: " << e.what() << endl;
         return 1;
     }
-    g_db_connection_string = string(db_url);
-
-    /* ───── Startup: initialize GCS & load/upload image index ───── */
-    auto client = initialize_gcs();
-    const char* bucket_name = initialize_bucket();
-    write_image_index_to_db(client, bucket_name, IMAGE_DIRECTORY, METADATA_SUFFIX);
-
-    
-
-    
 
     /* ───────────────────────────────────────
        GET /api/health_check
@@ -107,6 +96,10 @@ int main() {
         if (requested_rounds > MAX_ROUNDS) requested_rounds = MAX_ROUNDS;
 
         auto images_entries = get_images_for_rounds(requested_rounds);
+        if (images_entries.empty()) {
+            res["error"] = "No images available in the database";
+            return crow::response(503, res);
+        }
         try {
             pqxx::connection conn(g_db_connection_string);
             pqxx::work txn(conn);
@@ -329,6 +322,10 @@ int main() {
         if (requested_rounds > MAX_ROUNDS) requested_rounds = MAX_ROUNDS;
 
         auto images_entries = get_images_for_rounds(requested_rounds);
+        if (images_entries.empty()) {
+            res["error"] = "No images available in the database";
+            return crow::response(503, res);
+        }
 
         GameSession session;
         session.session_id = generate_session_id();
