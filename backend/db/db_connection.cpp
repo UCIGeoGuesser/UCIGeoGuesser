@@ -1,14 +1,46 @@
+#include <cctype>
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <pqxx/pqxx>
 #include <string>
 
-pqxx::connection connect_to_db() {
-    // uses the environment variable DATABASE_URL for connection string
-    const char* db_url = getenv("DATABASE_URL");
-    if (db_url == nullptr) {
+std::string get_database_url() {
+    const char* db_url = std::getenv("DATABASE_URL");
+    if (db_url == nullptr || db_url[0] == '\0') {
         throw std::runtime_error("DATABASE_URL environment variable not set.");
     }
-    return pqxx::connection(db_url);
+
+    std::string url(db_url);
+    auto is_quote_or_space = [](unsigned char c) {
+        return c == '"' || c == '\'' || std::isspace(c);
+    };
+    while (!url.empty() && is_quote_or_space(static_cast<unsigned char>(url.front()))) {
+        url.erase(url.begin());
+    }
+    while (!url.empty() && is_quote_or_space(static_cast<unsigned char>(url.back()))) {
+        url.pop_back();
+    }
+
+    // Inside Docker, localhost is the container, not the host Postgres from .env.
+    std::ifstream dockerenv("/.dockerenv");
+    if (dockerenv.good()) {
+        const std::string docker_host = "host.docker.internal";
+        for (const std::string& local_host : {"localhost", "127.0.0.1"}) {
+            const std::string from = "@" + local_host;
+            auto pos = url.find(from);
+            if (pos != std::string::npos) {
+                url.replace(pos + 1, local_host.size(), docker_host);
+                break;
+            }
+        }
+    }
+
+    return url;
+}
+
+pqxx::connection connect_to_db() {
+    return pqxx::connection(get_database_url());
 }
 
 bool add_image_entry(pqxx::connection& conn, const std::string& gcs_url, double latitude, double longitude) {

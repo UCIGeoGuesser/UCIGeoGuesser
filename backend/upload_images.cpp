@@ -402,16 +402,10 @@ std::vector<ImageEntry> get_images_for_rounds(int rounds) {
 }
 
 bool _valid_directory(const std::string& directory) {
-    if (!std::filesystem::exists(directory)) {
-        std::cerr << "Error: Directory does not exist: " << directory << std::endl;
-        return false;
-    }
-    if (!std::filesystem::is_directory(directory)) {
-        std::cerr << "Error: Path is not a directory: " << directory << std::endl;
-        return false;
-    }
-    if (std::filesystem::is_empty(directory)) {
-        std::cerr << "Warning: Directory is empty: " << directory << std::endl;
+    if (!std::filesystem::exists(directory) || !std::filesystem::is_directory(directory)
+        || std::filesystem::is_empty(directory)) {
+        std::cout << "No local images in " << directory
+                  << "; skipping ingest (using images already in the database)." << std::endl;
         return false;
     }
     return true;
