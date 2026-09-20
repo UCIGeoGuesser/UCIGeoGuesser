@@ -2,19 +2,18 @@
 
 import { useState, useEffect, useRef } from "react";
 
-import Results from "@/components/results";
-import GameTimer from "@/components/GameTimer";
 import GameOver from "@/components/GameOver";
 import ConnectionError from "@/components/ConnectionError";
-import GuessButton from "@/components/GuessButton";
 import sendAPICall from "../lib/apiCalls";
 import Loading from "@/app/loading";
 import { gameConfig } from "../lib/gameConfig";
 import { useRouter } from "next/navigation";
 import { apiRouters } from "../lib/apiRoutes";
+import GameView from "@/components/GameView";
+import TopHUD from "@/components/TopHUD";
+import MiniMap from "@/components/MiniMap";
 
 export default function GameApp() {
-
   /* Router State */
   const router = useRouter();
 
@@ -32,7 +31,6 @@ export default function GameApp() {
   /* Session state */
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roundScore, setRoundScore] = useState<number | null>(null);
-
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -62,18 +60,18 @@ export default function GameApp() {
 
   const resetMap = () => {
     setTimeout(() => {
-        sendToMap({
-          type: "clear",
-          center: gameConfig.mapCenter,
-          zoom: gameConfig.mapZoom,
-        });
-      }, 100);
-  }
+      sendToMap({
+        type: "clear",
+        center: gameConfig.mapCenter,
+        zoom: gameConfig.mapZoom,
+      });
+    }, 100);
+  };
 
   /* Health Check ping to backend */
   const checkServerHealth = async (): Promise<boolean> => {
     try {
-      const data = await sendAPICall({route: apiRouters.healthCheck});
+      const data = await sendAPICall({ route: apiRouters.healthCheck });
 
       if (data?.status === "ok") {
         setIsServerHealthy(true);
@@ -94,8 +92,6 @@ export default function GameApp() {
   const playAgain = () => {
     startGame();
   };
-
-  
 
   /* Start a new game by calling the backend */
   const startGame = async () => {
@@ -121,8 +117,10 @@ export default function GameApp() {
     }
 
     try {
-
-      const data = await sendAPICall({route: apiRouters.startGame, payload: { "totalRounds": gameConfig.maxRounds }});
+      const data = await sendAPICall({
+        route: apiRouters.startGame,
+        payload: { totalRounds: gameConfig.maxRounds },
+      });
       if (!isCurrentGame(generation)) return;
 
       sessionIdRef.current = data.sessionId;
@@ -133,7 +131,6 @@ export default function GameApp() {
 
       // Clear iframe map markers for new game
       resetMap();
-      
     } catch (err: any) {
       if (!isCurrentGame(generation)) return;
       console.error("Failed to start game:", err);
@@ -155,8 +152,10 @@ export default function GameApp() {
     setRoundScore(null);
 
     try {
-
-      const data = await sendAPICall({route: apiRouters.getRound, payload: {"sessionId": sid}});
+      const data = await sendAPICall({
+        route: apiRouters.getRound,
+        payload: { sessionId: sid },
+      });
       if (!isCurrentGame(generation, sid)) return;
 
       if (data.gameOver) {
@@ -187,8 +186,10 @@ export default function GameApp() {
     const generation = gameGenerationRef.current;
 
     try {
-      
-      const data = await sendAPICall({route: apiRouters.submitGuess, payload: {"sessionId": sid, "lat": lat, "lng": lng}});
+      const data = await sendAPICall({
+        route: apiRouters.submitGuess,
+        payload: { sessionId: sid, lat: lat, lng: lng },
+      });
       if (!isCurrentGame(generation, sid)) return;
 
       setRoundScore(data.score);
@@ -221,8 +222,10 @@ export default function GameApp() {
     const generation = gameGenerationRef.current;
 
     try {
-      
-      const data = await sendAPICall({route: apiRouters.skipRound, payload: {"sessionId": sid}});
+      const data = await sendAPICall({
+        route: apiRouters.skipRound,
+        payload: { sessionId: sid },
+      });
       if (!isCurrentGame(generation, sid)) return;
 
       setRoundScore(0);
@@ -245,6 +248,20 @@ export default function GameApp() {
       setConnectionError("Backend server disconnected.");
     }
   };
+
+  function onTimerEnd(): void {
+    if (!guessCoords) {
+      // Timer expired with no guess — skip the round
+      skipRound();
+    } else {
+      // Timer expired but user had placed a pin — submit their guess
+      submitGuess(guessCoords[0], guessCoords[1]);
+    }
+  }
+
+  function onGuess(): void {
+    guessCoords && submitGuess(guessCoords[0], guessCoords[1]);
+  }
 
   const returnHome = () => {
     router.push("/");
@@ -319,124 +336,48 @@ export default function GameApp() {
   }
 
   if (loading) {
-    return (
-      <Loading/>
-    )
+    return <Loading />;
   }
 
   /* Regular Game View */
   return (
-    <div
-      className="min-h-screen w-full relative transition-opacity duration-500"
-      style={{
-        backgroundImage: `url(${imageSrc})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundColor: "#0f172a",
-      }}
-    >
+    <GameView imageSrc={imageSrc}>
       
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <TopHUD
+          currRound={currRound}
+          maxRounds={gameConfig.maxRounds}
+          gameOver={gameOver}
+          hasGuessed={hasGuessed}
+          timeLimit={gameConfig.timeLimit}
+          roundScore={roundScore}
+          sessionId={sessionId}
+          onTimerEnd={onTimerEnd}
+          onNextRound={loadNextRound}
+        />
 
-      {(
-        <div className="min-h-screen flex flex-col items-center justify-center">
-          {/* Top HUD */}
-          <div className="absolute top-2 left-2 bg-gray-500/30 bg-opacity-90 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs z-20">
-            <div className="flex justify-between items-center">
-              <h1 className="text-white font-extrabold text-4xl drop-shadow-[px_1px_0px_black]">
-                UCI GeoGuesser
-              </h1>
-              <div className="text-white text-lg">
-                <div className="text-white">
-                  <span className="font-bold">Round: </span>
-                  <span>
-                    {" "}
-                    {currRound}/{gameConfig.maxRounds}{" "}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2 text-white">
-              {!gameOver && !hasGuessed ? (
-                <GameTimer
-                  key={`${sessionId ?? "none"}-${currRound}`}
-                  timeLimitInSeconds={gameConfig.timeLimit}
-                  onEnd={() => {
-                    if (!guessCoords) {
-                      // Timer expired with no guess — skip the round
-                      skipRound();
-                    } else {
-                      // Timer expired but user had placed a pin — submit their guess
-                      submitGuess(guessCoords[0], guessCoords[1]);
-                    }
-                  }}
-                />
-              ) : null}
-            </div>
-
-            {hasGuessed && roundScore !== null && !gameOver && (
-              <div className="mt-2 text-white text-lg font-bold drop-shadow-[1px_1px_0px_black]">
-                Score: {roundScore}
-              </div>
-            )}
-          </div>
-
-          {/* iframe map in corner */}
-          <div
-            className={`absolute bottom-2 right-2 transition-all duration-300 ease-in-out ${gameOver ? "pointer-events-none" : ""}`}
-            style={{
-              height: isHovering && !gameOver ? "500px" : "325px",
-              width: isHovering && !gameOver ? "500px" : "325px",
-            }}
-            onMouseEnter={() => {
-              if (!gameOver) setIsHovering(true);
-            }}
-            onMouseLeave={() => setIsHovering(false)}
-          >
-            <iframe
-              ref={iframeRef}
-              src="/geoguess-map.html"
-              style={{
-                height: "100%",
-                width: "100%",
-                border: 0,
-                borderRadius: 8,
-              }}
-              title="GeoGuesser Map"
-              sandbox="allow-scripts allow-same-origin allow-forms"
-            />
-            {!gameOver && (hasGuessed || guessCoords) && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "10%",
-                  left: "47%",
-                  transform: "translateX(-25%)",
-                  fontSize: 20,
-                  zIndex: 400,
-                }}
-              >
-                <GuessButton
-                  onGuess={() => {
-                    guessCoords && submitGuess(guessCoords[0], guessCoords[1]);
-                  }}
-                  moveToNextRound={loadNextRound}
-                  hasGuessed={hasGuessed}
-                />
-              </div>
-            )}
-            {hasGuessed && !gameOver && (
-              <div style={MAP_BUTTON_SLOT}>
-                <Results
-                  onNextImage={() => {
-                    loadNextRound();
-                  }}
-                />
-              </div>
-            )}
-          </div>
+        {/* iframe map in corner*/}
+        <div
+          className={`absolute bottom-2 right-2 transition-all duration-300 ease-in-out ${gameOver ? "pointer-events-none" : ""}`}
+          style={{
+            height: isHovering && !gameOver ? "500px" : "325px",
+            width: isHovering && !gameOver ? "500px" : "325px",
+          }}
+          onMouseEnter={() => {
+            if (!gameOver) setIsHovering(true);
+          }}
+          onMouseLeave={() => setIsHovering(false)}
+        >
+          <MiniMap iframeRef={iframeRef}
+                  gameOver={gameOver} 
+                  hasGuessed={hasGuessed} 
+                  guessCoords={guessCoords} 
+                  onGuess={onGuess} 
+                  loadNextRound={loadNextRound}
+          />
         </div>
-      )}
+      </div>
+      
 
       {gameOver && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -447,6 +388,6 @@ export default function GameApp() {
           />
         </div>
       )}
-    </div>
+    </GameView>
   );
 }
