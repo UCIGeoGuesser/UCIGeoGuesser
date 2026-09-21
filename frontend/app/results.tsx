@@ -2,16 +2,18 @@ import React from 'react';
 
 interface ResultsProps {
   onNextImage: () => void;
-  score: number;
+  label?: string;
 }
 
-const Results: React.FC<ResultsProps> = ({ onNextImage, score }) => {
+const Results: React.FC<ResultsProps> = ({ onNextImage, label = "Next Image" }) => {
   return (
       <button
         onClick={onNextImage}
-        className="bg-gray text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200 hover:bg-green-500/30 drop-shadow-[1px_1px_0px_black]"
+        className="bg-blue-500 text-white font-bold py-1 px-7 
+        rounded-xl transition-colors duration-200 
+        hover:bg-blue-700 drop-shadow-[1px_1px_0px_black]"
       >
-        Next Image (Score: {score})
+        {label}
       </button>
   );
 };
