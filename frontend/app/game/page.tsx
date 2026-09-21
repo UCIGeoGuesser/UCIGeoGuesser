@@ -258,7 +258,7 @@ export default function GameApp() {
       if (event.code === "Space" && guessCoords && !hasGuessed && isServerHealthy) {
         event.preventDefault();
         submitGuess(guessCoords[0], guessCoords[1]);
-      } else if (event.code === "Enter" && hasGuessed && !gameOver && isServerHealthy) {
+      } else if (event.code === "Space" && hasGuessed && !gameOver && isServerHealthy) {
         event.preventDefault();
         loadNextRound();
       }
