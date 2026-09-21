@@ -7,6 +7,7 @@ import Guess from "../guess";
 import GameTimer from "../GameTimer";
 import GameOver from "../GameOver";
 import { apiHeaders, getBackendUrl } from "../lib/backend";
+import { MAP_BUTTON_SLOT } from "../lib/layout";
 
 export default function GameApp() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
@@ -255,7 +256,7 @@ export default function GameApp() {
       if (event.code === "Space" && guessCoords && !hasGuessed && isServerHealthy) {
         event.preventDefault();
         submitGuess(guessCoords[0], guessCoords[1]);
-      } else if (event.code === "Enter" && hasGuessed && !gameOver && isServerHealthy) {
+      } else if (event.code === "Space" && hasGuessed && !gameOver && isServerHealthy) {
         event.preventDefault();
         loadNextRound();
       }
@@ -362,12 +363,9 @@ export default function GameApp() {
             </div>
 
             {hasGuessed && roundScore !== null && !gameOver && (
-              <Results
-                onNextImage={() => {
-                  loadNextRound();
-                }}
-                score={roundScore}
-              />
+              <div className="mt-2 text-white text-lg font-bold drop-shadow-[1px_1px_0px_black]">
+                Score: {roundScore}
+              </div>
             )}
           </div>
 
@@ -403,21 +401,21 @@ export default function GameApp() {
               sandbox="allow-scripts allow-same-origin allow-forms"
             />
             {guessCoords && !hasGuessed && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "10%",
-                  left: "47%",
-                  transform: "translateX(-25%)",
-                  fontSize: 22,
-                  zIndex: 400,
-                }}
-              >
+              <div style={MAP_BUTTON_SLOT}>
                 <Guess
                   onGuess={() => {
                     submitGuess(guessCoords[0], guessCoords[1]);
                   }}
                   hasGuessed={hasGuessed}
+                />
+              </div>
+            )}
+            {hasGuessed && !gameOver && (
+              <div style={MAP_BUTTON_SLOT}>
+                <Results
+                  onNextImage={() => {
+                    loadNextRound();
+                  }}
                 />
               </div>
             )}

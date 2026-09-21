@@ -4,7 +4,9 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import GameTimer from "../../GameTimer";
 import Guess from "../../guess";
+import Results from "../../results";
 import ChallengeResults from "../../ChallengeResults";
+import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
   apiHeaders,
   getBackendUrl,
@@ -252,7 +254,7 @@ function ChallengePageInner() {
       if (event.code === "Space" && guessCoords && !hasGuessed) {
         event.preventDefault();
         confirmGuess();
-      } else if (event.code === "Enter" && hasGuessed && !submitting) {
+      } else if (event.code === "Space" && hasGuessed && !submitting) {
         event.preventDefault();
         goNext();
       }
@@ -377,14 +379,6 @@ function ChallengePageInner() {
             />
           </div>
         )}
-        {hasGuessed && !submitting && (
-          <button
-            onClick={goNext}
-            className="mt-2 bg-gray text-white font-bold py-3 px-6 rounded-xl hover:bg-green-500/30 drop-shadow-[1px_1px_0px_black]"
-          >
-            {roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
-          </button>
-        )}
         {role === "creator" && (
           <button onClick={copyLink} className="mt-2 text-xs text-white/90 underline block mx-auto">
             {copied ? "Link copied" : "Copy invite link"}
@@ -409,17 +403,16 @@ function ChallengePageInner() {
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
         {guessCoords && !hasGuessed && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "10%",
-              left: "47%",
-              transform: "translateX(-25%)",
-              fontSize: 22,
-              zIndex: 400,
-            }}
-          >
+          <div style={MAP_BUTTON_SLOT}>
             <Guess onGuess={confirmGuess} hasGuessed={hasGuessed} />
+          </div>
+        )}
+        {hasGuessed && !submitting && (
+          <div style={MAP_BUTTON_SLOT}>
+            <Results
+              onNextImage={goNext}
+              label={roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
+            />
           </div>
         )}
       </div>
