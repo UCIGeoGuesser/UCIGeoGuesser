@@ -2,7 +2,11 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import type { ChallengeAttempt, ChallengeRole, RoundBreakdown } from "./lib/backend";
+import type {
+  ChallengeAttempt,
+  ChallengeRole,
+  RoundBreakdown,
+} from "./lib/challengeHelpers";
 
 type ChallengeResultsProps = {
   role: ChallengeRole;
@@ -23,9 +27,12 @@ export default function ChallengeResults({
   const yourScore = you?.totalScore ?? 0;
   const opponentDone = Boolean(opponent?.completed);
   const opponentScore = opponent?.totalScore;
-  const youWon = opponentDone && opponentScore !== undefined && yourScore > opponentScore;
-  const tied = opponentDone && opponentScore !== undefined && yourScore === opponentScore;
-  const youLost = opponentDone && opponentScore !== undefined && yourScore < opponentScore;
+  const youWon =
+    opponentDone && opponentScore !== undefined && yourScore > opponentScore;
+  const tied =
+    opponentDone && opponentScore !== undefined && yourScore === opponentScore;
+  const youLost =
+    opponentDone && opponentScore !== undefined && yourScore < opponentScore;
   const opponentLabel = role === "creator" ? "Friend" : "Host";
 
   return (

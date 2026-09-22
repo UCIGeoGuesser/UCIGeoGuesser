@@ -1,11 +1,10 @@
-import React from 'react';
 
 interface ResultsProps {
   onNextImage: () => void;
   label?: string;
 }
 
-const Results: React.FC<ResultsProps> = ({ onNextImage, label = "Next Image" }) => {
+export default function Results({ onNextImage, score }: ResultsProps) {
   return (
       <button
         onClick={onNextImage}
@@ -17,5 +16,3 @@ const Results: React.FC<ResultsProps> = ({ onNextImage, label = "Next Image" }) 
       </button>
   );
 };
-
-export default Results;

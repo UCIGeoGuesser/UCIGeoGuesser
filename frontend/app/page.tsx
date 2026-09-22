@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import TitleScreen from "./TitleScreen";
-import { extractChallengeId } from "./lib/backend";
+import { extractChallengeId } from "./lib/challengeHelpers";
 import sendAPICall from "./lib/apiCalls";
 import { apiRouters } from "./lib/apiRoutes";
 import { gameConfig } from "./lib/gameConfig";

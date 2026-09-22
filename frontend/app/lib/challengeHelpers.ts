@@ -1,18 +1,3 @@
-const DEFAULT_BACKEND_URL = "http://localhost:18080";
-
-export function getBackendUrl(): string {
-  const url = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
-  if (!url || url === "undefined") return DEFAULT_BACKEND_URL;
-  return url.replace(/\/$/, "");
-}
-
-export function apiHeaders(json = false): HeadersInit {
-  const headers: Record<string, string> = {
-    "ngrok-skip-browser-warning": "true",
-  };
-  if (json) headers["Content-Type"] = "application/json";
-  return headers;
-}
 
 export const CHALLENGE_UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;

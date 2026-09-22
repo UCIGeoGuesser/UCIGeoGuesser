@@ -18,13 +18,11 @@ import {
   type ChallengeRole,
   type GuessPayload,
   type RoundBreakdown,
-} from "../../lib/backend";
+} from "../../lib/challengeHelpers";
 import sendAPICall from "@/app/lib/apiCalls";
 import { apiRouters } from "@/app/lib/apiRoutes";
 import { gameConfig } from "@/app/lib/gameConfig";
 import Loading from "@/app/loading";
-
-
 
 function storageKey(id: string, suffix: string) {
   return `ucigg:challenge:${id}:${suffix}`;
@@ -92,8 +90,10 @@ function ChallengePageInner() {
     //   throw new Error(errData?.error || `Server error: ${res.status}`);
     // }
     // return (await res.json()) as ChallengePayload;
-    return (await sendAPICall({route: apiRouters.getChallenge, param: challengeId})) as ChallengePayload;
-
+    return (await sendAPICall({
+      route: apiRouters.getChallenge,
+      param: challengeId,
+    })) as ChallengePayload;
   }, [challengeId]);
 
   useEffect(() => {
@@ -218,7 +218,11 @@ function ChallengePageInner() {
       //   }
       //   throw new Error(data?.error || `Server error: ${res.status}`);
       // }
-      const data = await sendAPICall({route: apiRouters.finishChallenge, param: challengeId, payload: {"role": role, "guesses": finalGuesses}});
+      const data = await sendAPICall({
+        route: apiRouters.finishChallenge,
+        param: challengeId,
+        payload: { role: role, guesses: finalGuesses },
+      });
       setRoundBreakdowns(data.roundBreakdowns);
       const refreshed = await fetchChallenge();
       setChallenge(refreshed);
@@ -260,7 +264,11 @@ function ChallengePageInner() {
     setGuessCoords(null);
     setHasGuessed(false);
     setPendingGuess(null);
-    sendToMap({ type: "clear", center: gameConfig.mapCenter, zoom: gameConfig.mapZoom });
+    sendToMap({
+      type: "clear",
+      center: gameConfig.mapCenter,
+      zoom: gameConfig.mapZoom,
+    });
     advancingRef.current = false;
   };
 
@@ -332,9 +340,7 @@ function ChallengePageInner() {
   }
 
   if (phase === "loading" || !challenge) {
-    return (
-     <Loading/>
-    );
+    return <Loading />;
   }
 
   if (phase === "share") {
@@ -460,7 +466,11 @@ function ChallengePageInner() {
               zIndex: 400,
             }}
           >
-            <GuessButton onGuess={confirmGuess} moveToNextRound={goNext} hasGuessed={hasGuessed} />
+            <GuessButton
+              onGuess={confirmGuess}
+              moveToNextRound={goNext}
+              hasGuessed={hasGuessed}
+            />
           </div>
         )}
         {hasGuessed && !submitting && (
@@ -478,7 +488,7 @@ function ChallengePageInner() {
 
 export default function ChallengePage() {
   return (
-    <Suspense fallback={<Loading/>}>
+    <Suspense fallback={<Loading />}>
       <ChallengePageInner />
     </Suspense>
   );

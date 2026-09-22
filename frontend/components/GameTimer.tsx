@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 
 
 interface GameTimerProps {
-  timeLimitInSeconds: number; // timeLimitInSeconds is an integer in seconds
-  onEnd?: () => void; // onEnd (function) will be called when time reaches zero (but NOT during render)
+  timeLimitInSeconds: number, // timeLimitInSeconds is an integer in seconds
+  className?: string // change h1 header style
+  onEnd?: () => void, // onEnd (function) will be called when time reaches zero (but NOT during render)
 }
 
-function GameTimer({ timeLimitInSeconds, onEnd }: GameTimerProps) {
+export default function GameTimer({ timeLimitInSeconds, className, onEnd }: GameTimerProps) {
   // record the start time for accurate measurements
   const startRef = useRef<number>(Date.now());
 
@@ -74,13 +75,10 @@ function GameTimer({ timeLimitInSeconds, onEnd }: GameTimerProps) {
     return null;
   }
 
-  return <h1>{formatTime(timeLeft)}</h1>;
+  return <h1 className={className ? `${className}` : ''}>{formatTime(timeLeft)}</h1>;
 }
 
-// Helpers (unchanged except ensure they're pure)
-function timeLeftInSeconds(startTime: number, currentTime: number, timeLimitInSeconds: number) {
-  return timeLimitInSeconds - (currentTime - startTime) / 1000;
-}
+// Helper to format time
 
 function formatTime(time: number) {
   const minutes = Math.floor(time / 60);
@@ -91,4 +89,3 @@ function formatTime(time: number) {
   return minutes + ":" + seconds;
 }
 
-export default GameTimer;

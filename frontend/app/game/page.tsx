@@ -12,6 +12,13 @@ import { apiRouters } from "../lib/apiRoutes";
 import GameView from "@/components/GameView";
 import TopHUD from "@/components/TopHUD";
 import MiniMap from "@/components/MiniMap";
+import GameState from "@/components/GameState";
+import GameTimer from "@/components/GameTimer";
+import Results from "@/components/results";
+import ExpandView from "@/components/ExpandView";
+import BotttomLeft from "@/components/BottomLeft";
+import MiddleCenter from "@/components/MiddleCenter";
+
 
 export default function GameApp() {
   /* Router State */
@@ -343,31 +350,27 @@ export default function GameApp() {
   return (
     <GameView imageSrc={imageSrc}>
       
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <TopHUD
-          currRound={currRound}
-          maxRounds={gameConfig.maxRounds}
-          gameOver={gameOver}
-          hasGuessed={hasGuessed}
-          timeLimit={gameConfig.timeLimit}
-          roundScore={roundScore}
-          sessionId={sessionId}
-          onTimerEnd={onTimerEnd}
-          onNextRound={loadNextRound}
-        />
+      <TopHUD>
+        <GameState currRound={currRound} maxRounds={gameConfig.maxRounds}/>
+        {!gameOver && !hasGuessed && (
+          <GameTimer
+            key={`${sessionId ?? "none"}-${currRound}`}
+            timeLimitInSeconds={gameConfig.timeLimit}
+            className="mt-2 text-white"
+            onEnd={onTimerEnd}
+          />)
+        }
+        {hasGuessed && roundScore !== null && !gameOver && (
+          <Results
+            onNextImage={loadNextRound}
+            score={roundScore}
+          />
+        )}
+      </TopHUD>
 
-        {/* iframe map in corner*/}
-        <div
-          className={`absolute bottom-2 right-2 transition-all duration-300 ease-in-out ${gameOver ? "pointer-events-none" : ""}`}
-          style={{
-            height: isHovering && !gameOver ? "500px" : "325px",
-            width: isHovering && !gameOver ? "500px" : "325px",
-          }}
-          onMouseEnter={() => {
-            if (!gameOver) setIsHovering(true);
-          }}
-          onMouseLeave={() => setIsHovering(false)}
-        >
+      {/* iframe map in corner*/}
+      <BotttomLeft>
+        <ExpandView initialSize="h-80 w-80" expandedSize="group-hover:h-96 group-hover:w-96"  disableView={gameOver}>
           <MiniMap iframeRef={iframeRef}
                   gameOver={gameOver} 
                   hasGuessed={hasGuessed} 
@@ -375,18 +378,19 @@ export default function GameApp() {
                   onGuess={onGuess} 
                   loadNextRound={loadNextRound}
           />
-        </div>
-      </div>
+        </ExpandView>
+      </BotttomLeft>
+        
       
 
       {gameOver && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <MiddleCenter bgColor="bg-black/60">
           <GameOver
             finalScore={finalScore}
             onPlayAgain={playAgain}
             onReturnHome={returnHome}
           />
-        </div>
+        </MiddleCenter>
       )}
     </GameView>
   );
