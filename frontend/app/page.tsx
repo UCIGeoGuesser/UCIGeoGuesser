@@ -37,7 +37,7 @@ export default function Page() {
       return;
     }
     setJoinError(null);
-    router.push(`/challenge/${id}?role=invitee`);
+    router.push(`/challenge/${id}`);
   };
 
   return (

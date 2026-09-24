@@ -12,7 +12,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import GameTimer from "@/components/GameTimer";
 import GuessButton from "@/components/GuessButton";
 import ChallengeResults from "../../ChallengeResults";
-import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
   type ChallengePayload,
   type ChallengeRole,
@@ -34,6 +33,7 @@ function resolveRole(id: string, queryRole: string | null): ChallengeRole {
       ? localStorage.getItem(storageKey(id, "role"))
       : null;
   if (stored === "creator" || stored === "invitee") return stored;
+  if (queryRole === "creator") return "creator";
   return "invitee";
 }
 
@@ -97,21 +97,16 @@ function ChallengePageInner() {
   }, [challengeId]);
 
   useEffect(() => {
-    if (!challengeId) return;
     let cancelled = false;
     const boot = async () => {
       try {
         const resolvedRole = resolveRole(challengeId, searchParams.get("role"));
         localStorage.setItem(storageKey(challengeId, "role"), resolvedRole);
-        if (!cancelled) {
-          setRole(resolvedRole);
-          setLoadError(null);
-        }
+        if (!cancelled) setRole(resolvedRole);
 
         const data = await fetchChallenge();
         if (cancelled) return;
         setChallenge(data);
-        setLoadError(null);
 
         const myAttempt = data.attempts?.[resolvedRole];
         if (myAttempt?.completed) {
@@ -301,7 +296,7 @@ function ChallengePageInner() {
       if (event.code === "Space" && guessCoords && !hasGuessed) {
         event.preventDefault();
         confirmGuess();
-      } else if (event.code === "Space" && hasGuessed && !submitting) {
+      } else if (event.code === "Enter" && hasGuessed && !submitting) {
         event.preventDefault();
         goNext();
       }
@@ -429,6 +424,14 @@ function ChallengePageInner() {
             />
           </div>
         )}
+        {hasGuessed && !submitting && (
+          <button
+            onClick={goNext}
+            className="mt-2 bg-gray text-white font-bold py-3 px-6 rounded-xl hover:bg-green-500/30 drop-shadow-[1px_1px_0px_black]"
+          >
+            {roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
+          </button>
+        )}
         {role === "creator" && (
           <button
             onClick={copyLink}
@@ -470,14 +473,6 @@ function ChallengePageInner() {
               onGuess={confirmGuess}
               moveToNextRound={goNext}
               hasGuessed={hasGuessed}
-            />
-          </div>
-        )}
-        {hasGuessed && !submitting && (
-          <div style={MAP_BUTTON_SLOT}>
-            <Results
-              onNextImage={goNext}
-              label={roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
             />
           </div>
         )}

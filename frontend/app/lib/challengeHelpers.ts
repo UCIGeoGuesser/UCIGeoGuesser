@@ -3,8 +3,7 @@ export const CHALLENGE_UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 export function extractChallengeId(input: string): string | null {
-  const normalized = input.replace(/\s+/g, "");
-  const match = normalized.match(CHALLENGE_UUID_RE);
+  const match = input.trim().match(CHALLENGE_UUID_RE);
   return match ? match[0].toLowerCase() : null;
 }
 
