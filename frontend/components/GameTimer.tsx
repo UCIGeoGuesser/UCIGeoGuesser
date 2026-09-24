@@ -1,20 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 
-// timeLimitInSeconds is an integer in seconds
-// onEnd (function) will be called when time reaches zero (but NOT during render)
-function GameTimer({ timeLimitInSeconds, onEnd }) {
+
+
+interface GameTimerProps {
+  timeLimitInSeconds: number, // timeLimitInSeconds is an integer in seconds
+  className?: string // change h1 header style
+  onEnd?: () => void, // onEnd (function) will be called when time reaches zero (but NOT during render)
+}
+
+export default function GameTimer({ timeLimitInSeconds, className, onEnd }: GameTimerProps) {
   // record the start time for accurate measurements
-  const startRef = useRef(Date.now());
+  const startRef = useRef<number>(Date.now());
 
   // timeLeft is an integer number of seconds remaining
   const [timeLeft, setTimeLeft] = useState(() => timeLimitInSeconds);
 
-  const intervalRef = useRef(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onEndRef = useRef<(() => void) | undefined>(onEnd);
+  const hasEndedRef = useRef<boolean>(false);
+  onEndRef.current = onEnd;
 
   // (re)start timer whenever timeLimitInSeconds changes
   useEffect(() => {
     // reset start time and visible time
     startRef.current = Date.now();
+    hasEndedRef.current = false;
     setTimeLeft(timeLimitInSeconds);
 
     // clear any existing interval
@@ -51,30 +61,26 @@ function GameTimer({ timeLimitInSeconds, onEnd }) {
     };
   }, [timeLimitInSeconds]);
 
-  // Call onEnd from an effect when timeLeft becomes 0.
-  // This guarantees the call happens after render (safe).
+  // Fire onEnd only when time actually hits 0, not when the parent
+  // re-renders and passes a new onEnd function identity.
   useEffect(() => {
-    if (timeLeft <= 0) {
-      // defer the call to avoid any render-time state updates issues in parent
-      Promise.resolve().then(() => {
-        onEnd?.();
-      });
-    }
-  }, [timeLeft, onEnd]);
+    if (timeLeft > 0 || hasEndedRef.current) return;
+    hasEndedRef.current = true;
+    Promise.resolve().then(() => {
+      onEndRef.current?.();
+    });
+  }, [timeLeft]);
 
   if (timeLeft <= 0) {
     return null;
   }
 
-  return <h1>{formatTime(timeLeft)}</h1>;
+  return <h1 className={className ? `${className}` : ''}>{formatTime(timeLeft)}</h1>;
 }
 
-// Helpers (unchanged except ensure they're pure)
-function timeLeftInSeconds(startTime, currentTime, timeLimitInSeconds) {
-  return timeLimitInSeconds - (currentTime - startTime) / 1000;
-}
+// Helper to format time
 
-function formatTime(time) {
+function formatTime(time: number) {
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60);
   if (seconds < 10) {
@@ -83,4 +89,3 @@ function formatTime(time) {
   return minutes + ":" + seconds;
 }
 
-export default GameTimer;

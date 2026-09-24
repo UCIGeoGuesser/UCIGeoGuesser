@@ -2,7 +2,11 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import type { ChallengeAttempt, ChallengeRole, RoundBreakdown } from "./lib/backend";
+import type {
+  ChallengeAttempt,
+  ChallengeRole,
+  RoundBreakdown,
+} from "./lib/challengeHelpers";
 
 type ChallengeResultsProps = {
   role: ChallengeRole;
@@ -23,9 +27,12 @@ export default function ChallengeResults({
   const yourScore = you?.totalScore ?? 0;
   const opponentDone = Boolean(opponent?.completed);
   const opponentScore = opponent?.totalScore;
-  const youWon = opponentDone && opponentScore !== undefined && yourScore > opponentScore;
-  const tied = opponentDone && opponentScore !== undefined && yourScore === opponentScore;
-  const youLost = opponentDone && opponentScore !== undefined && yourScore < opponentScore;
+  const youWon =
+    opponentDone && opponentScore !== undefined && yourScore > opponentScore;
+  const tied =
+    opponentDone && opponentScore !== undefined && yourScore === opponentScore;
+  const youLost =
+    opponentDone && opponentScore !== undefined && yourScore < opponentScore;
   const opponentLabel = role === "creator" ? "Friend" : "Host";
 
   return (
@@ -51,7 +58,7 @@ export default function ChallengeResults({
           <p className="text-sm text-white/70 mt-1">
             Send them this link. This page updates when they finish.
           </p>
-          <p className="mt-2 text-xs text-yellow-200 overflow-x-auto whitespace-nowrap">{shareUrl}</p>
+          <p className="mt-2 text-xs break-all text-yellow-200">{shareUrl}</p>
         </div>
       )}
 

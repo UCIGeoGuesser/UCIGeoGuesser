@@ -1,16 +1,28 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
-import Results from "../results";
-import Guess from "../guess";
-import GameTimer from "../GameTimer";
-import GameOver from "../GameOver";
-import { apiHeaders, getBackendUrl } from "../lib/backend";
-import { MAP_BUTTON_SLOT } from "../lib/layout";
+import GameOver from "@/components/GameOver";
+import ConnectionError from "@/components/ConnectionError";
+import sendAPICall from "../lib/apiCalls";
+import Loading from "@/app/loading";
+import { gameConfig } from "../lib/gameConfig";
+import { useRouter } from "next/navigation";
+import { apiRouters } from "../lib/apiRoutes";
+import GameView from "@/components/GameView";
+import TopHUD from "@/components/TopHUD";
+import MiniMap from "@/components/MiniMap";
+import GameState from "@/components/GameState";
+import GameTimer from "@/components/GameTimer";
+import Results from "@/components/results";
+import ExpandView from "@/components/ExpandView";
+import BotttomLeft from "@/components/BottomLeft";
+import MiddleCenter from "@/components/MiddleCenter";
+
 
 export default function GameApp() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || getBackendUrl();
+  /* Router State */
+  const router = useRouter();
 
   /* Health & Connection States */
   const [isServerHealthy, setIsServerHealthy] = useState<boolean | null>(null);
@@ -26,18 +38,24 @@ export default function GameApp() {
   /* Session state */
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roundScore, setRoundScore] = useState<number | null>(null);
-  const [answerCoords, setAnswerCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   /* Map iframe ref */
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const gameGenerationRef = useRef(0);
+  const gameOverRef = useRef(false);
 
-  /* Round / timer */
-  const mapZoom = 14.5;
-  const timeLimit = 60; // seconds
-  const maxRounds = 8;
+  /* Round Use States */
   const [currRound, setCurrRound] = useState<number>(0);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
+  gameOverRef.current = gameOver;
+
+  const isCurrentGame = (generation: number, sid?: string | null) => {
+    if (generation !== gameGenerationRef.current) return false;
+    if (sid !== undefined && sessionIdRef.current !== sid) return false;
+    return true;
+  };
 
   /* helper to send message to iframe safely */
   const sendToMap = (msg: any) => {
@@ -47,18 +65,21 @@ export default function GameApp() {
     }
   };
 
+  const resetMap = () => {
+    setTimeout(() => {
+      sendToMap({
+        type: "clear",
+        center: gameConfig.mapCenter,
+        zoom: gameConfig.mapZoom,
+      });
+    }, 100);
+  };
+
   /* Health Check ping to backend */
   const checkServerHealth = async (): Promise<boolean> => {
     try {
-      const res = await fetch(`${backendUrl}/api/health_check`, {
-        method: "GET",
-        signal: AbortSignal.timeout(4000),
-        headers: apiHeaders(),
-      });
+      const data = await sendAPICall({ route: apiRouters.healthCheck });
 
-      if (!res.ok) throw new Error(`Health check returned status ${res.status}`);
-
-      const data = await res.json();
       if (data?.status === "ok") {
         setIsServerHealthy(true);
         setConnectionError(null);
@@ -68,51 +89,57 @@ export default function GameApp() {
     } catch (err: any) {
       console.error("Health check failed:", err);
       setIsServerHealthy(false);
-      setConnectionError("Something went wrong on our end or your connection dropped.");
+      setConnectionError(
+        "Something went wrong on our end or your connection dropped.",
+      );
       return false;
     }
   };
 
+  const playAgain = () => {
+    startGame();
+  };
+
   /* Start a new game by calling the backend */
   const startGame = async () => {
+    gameGenerationRef.current += 1;
+    const generation = gameGenerationRef.current;
+
+    sessionIdRef.current = null;
+    setSessionId(null);
     setLoading(true);
     setHasGuessed(false);
+    setGameOver(false);
+    setFinalScore(0);
+    setCurrRound(0);
     setGuessCoords(null);
     setRoundScore(null);
-    setAnswerCoords(null);
 
     // Run health check before attempting to initialize a session
     const healthy = await checkServerHealth();
+    if (!isCurrentGame(generation)) return;
     if (!healthy) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch(`${backendUrl}/api/start_game`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ totalRounds: maxRounds }),
+      const data = await sendAPICall({
+        route: apiRouters.startGame,
+        payload: { totalRounds: gameConfig.maxRounds },
       });
+      if (!isCurrentGame(generation)) return;
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      sessionIdRef.current = data.sessionId;
       setSessionId(data.sessionId);
       setCurrRound(data.round);
       setImageSrc(data.imageUrl);
       setLoading(false);
 
       // Clear iframe map markers for new game
-      sendToMap({
-        type: "clear",
-        center: [33.645934402549955, -117.84272074704859],
-        zoom: mapZoom,
-      });
+      resetMap();
     } catch (err: any) {
+      if (!isCurrentGame(generation)) return;
       console.error("Failed to start game:", err);
       setIsServerHealthy(false);
       setConnectionError(err.message || "Unable to start game server session.");
@@ -122,27 +149,21 @@ export default function GameApp() {
 
   /* Load the next round from the backend */
   const loadNextRound = async () => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     setLoading(true);
     setHasGuessed(false);
     setGuessCoords(null);
     setRoundScore(null);
-    setAnswerCoords(null);
 
     try {
-      const res = await fetch(`${backendUrl}/api/get_round`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId }),
+      const data = await sendAPICall({
+        route: apiRouters.getRound,
+        payload: { sessionId: sid },
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
+      if (!isCurrentGame(generation, sid)) return;
 
       if (data.gameOver) {
         setGameOver(true);
@@ -155,12 +176,9 @@ export default function GameApp() {
       setImageSrc(data.imageUrl);
       setLoading(false);
 
-      sendToMap({
-        type: "clear",
-        center: [33.645934402549955, -117.84272074704859],
-        zoom: mapZoom,
-      });
+      resetMap();
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to load round:", err);
       setIsServerHealthy(false);
       setConnectionError("Lost connection to backend server.");
@@ -170,24 +188,19 @@ export default function GameApp() {
 
   /* Submit a guess to the backend */
   const submitGuess = async (lat: number, lng: number) => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     try {
-      const res = await fetch(`${backendUrl}/api/submit_guess`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId, lat, lng }),
+      const data = await sendAPICall({
+        route: apiRouters.submitGuess,
+        payload: { sessionId: sid, lat: lat, lng: lng },
       });
+      if (!isCurrentGame(generation, sid)) return;
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
       setRoundScore(data.score);
       setFinalScore(data.totalScore);
-      setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
       setHasGuessed(true);
 
       if (data.gameOver) {
@@ -200,32 +213,30 @@ export default function GameApp() {
         lng: data.answerLng,
       });
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to submit guess:", err);
       setIsServerHealthy(false);
-      setConnectionError("Failed to submit guess. Backend server is unreachable.");
+      setConnectionError(
+        "Failed to submit guess. Backend server is unreachable.",
+      );
     }
   };
 
   /* Skip a round */
   const skipRound = async () => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const generation = gameGenerationRef.current;
 
     try {
-      const res = await fetch(`${backendUrl}/api/skip_round`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ sessionId }),
+      const data = await sendAPICall({
+        route: apiRouters.skipRound,
+        payload: { sessionId: sid },
       });
+      if (!isCurrentGame(generation, sid)) return;
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
       setRoundScore(0);
       setFinalScore(data.totalScore);
-      setAnswerCoords({ lat: data.answerLat, lng: data.answerLng });
       setHasGuessed(true);
 
       if (data.gameOver) {
@@ -238,10 +249,29 @@ export default function GameApp() {
         lng: data.answerLng,
       });
     } catch (err: any) {
+      if (!isCurrentGame(generation, sid)) return;
       console.error("Failed to skip round:", err);
       setIsServerHealthy(false);
       setConnectionError("Backend server disconnected.");
     }
+  };
+
+  function onTimerEnd(): void {
+    if (!guessCoords) {
+      // Timer expired with no guess — skip the round
+      skipRound();
+    } else {
+      // Timer expired but user had placed a pin — submit their guess
+      submitGuess(guessCoords[0], guessCoords[1]);
+    }
+  }
+
+  function onGuess(): void {
+    guessCoords && submitGuess(guessCoords[0], guessCoords[1]);
+  }
+
+  const returnHome = () => {
+    router.push("/");
   };
 
   /* Initial load */
@@ -253,10 +283,21 @@ export default function GameApp() {
   /* Keyboard handlers */
   useEffect(() => {
     const KeyPressHandler = (event: KeyboardEvent) => {
-      if (event.code === "Space" && guessCoords && !hasGuessed && isServerHealthy) {
+      if (
+        event.code === "Space" &&
+        guessCoords &&
+        !hasGuessed &&
+        !gameOver &&
+        isServerHealthy
+      ) {
         event.preventDefault();
         submitGuess(guessCoords[0], guessCoords[1]);
-      } else if (event.code === "Space" && hasGuessed && !gameOver && isServerHealthy) {
+      } else if (
+        event.code === "Enter" &&
+        hasGuessed &&
+        !gameOver &&
+        isServerHealthy
+      ) {
         event.preventDefault();
         loadNextRound();
       }
@@ -274,6 +315,7 @@ export default function GameApp() {
 
       switch (msg.type) {
         case "guess":
+          if (gameOverRef.current) return;
           if (typeof msg.lat === "number" && typeof msg.lng === "number") {
             setGuessCoords([msg.lat, msg.lng]);
           }
@@ -289,142 +331,67 @@ export default function GameApp() {
   /* Connection Error Screen UI */
   if (isServerHealthy === false) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6 text-center">
-        <div className="bg-gray-800 border border-red-500/30 rounded-xl p-8 max-w-md shadow-2xl">
-          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            ⚠️
-          </div>
-          <h1 className="text-2xl font-bold text-red-400 mb-2">Server Unreachable</h1>
-          <p className="text-gray-300 text-sm mb-6">
-            {connectionError || "The game server failed to respond. Please try again later."}
-          </p>
-          <button
-            onClick={startGame}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 transition text-white font-semibold rounded-lg shadow-lg"
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
+      <ConnectionError
+        message={connectionError || "Lost connection to backend server."}
+        onRetry={() => {
+          setIsServerHealthy(null);
+          setConnectionError(null);
+          startGame();
+        }}
+      />
     );
+  }
+
+  if (loading) {
+    return <Loading />;
   }
 
   /* Regular Game View */
   return (
-    <div
-      className="min-h-screen w-full relative transition-opacity duration-500"
-      style={{
-        backgroundImage: `url(${imageSrc})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundColor: "#0f172a",
-      }}
-    >
-      {loading && (
-        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-        </div>
+    <GameView imageSrc={imageSrc}>
+      
+      <TopHUD>
+        <GameState currRound={currRound} maxRounds={gameConfig.maxRounds}/>
+        {!gameOver && !hasGuessed && (
+          <GameTimer
+            key={`${sessionId ?? "none"}-${currRound}`}
+            timeLimitInSeconds={gameConfig.timeLimit}
+            className="mt-2 text-white"
+            onEnd={onTimerEnd}
+          />)
+        }
+        {hasGuessed && roundScore !== null && !gameOver && (
+          <Results
+            onNextImage={loadNextRound}
+            score={roundScore}
+          />
+        )}
+      </TopHUD>
+
+      {/* iframe map in corner*/}
+      <BotttomLeft>
+        <ExpandView initialSize="h-80 w-80" expandedSize="group-hover:h-96 group-hover:w-96"  disableView={gameOver}>
+          <MiniMap iframeRef={iframeRef}
+                  gameOver={gameOver} 
+                  hasGuessed={hasGuessed} 
+                  guessCoords={guessCoords} 
+                  onGuess={onGuess} 
+                  loadNextRound={loadNextRound}
+          />
+        </ExpandView>
+      </BotttomLeft>
+        
+      
+
+      {gameOver && (
+        <MiddleCenter bgColor="bg-black/60">
+          <GameOver
+            finalScore={finalScore}
+            onPlayAgain={playAgain}
+            onReturnHome={returnHome}
+          />
+        </MiddleCenter>
       )}
-
-      {!loading && (
-        <div className="min-h-screen flex flex-col items-center justify-center">
-          {/* Top HUD */}
-          <div className="absolute top-2 left-2 bg-gray-500/30 bg-opacity-90 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs">
-            <div className="flex justify-between items-center">
-              <h1 className="text-white font-extrabold text-4xl drop-shadow-[px_1px_0px_black]">
-                UCI GeoGuesser
-              </h1>
-              <div className="text-white text-lg">
-                <div className="text-white">
-                  <span className="font-bold">Round: </span>
-                  <span>
-                    {" "}
-                    {currRound}/{maxRounds}{" "}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2 text-white">
-              {!gameOver && !hasGuessed ? (
-                <GameTimer
-                  timeLimitInSeconds={timeLimit}
-                  onEnd={() => {
-                    if (!guessCoords) {
-                      // Timer expired with no guess — skip the round
-                      skipRound();
-                    } else {
-                      // Timer expired but user had placed a pin — submit their guess
-                      submitGuess(guessCoords[0], guessCoords[1]);
-                    }
-                  }}
-                />
-              ) : null}
-            </div>
-
-            {hasGuessed && roundScore !== null && !gameOver && (
-              <div className="mt-2 text-white text-lg font-bold drop-shadow-[1px_1px_0px_black]">
-                Score: {roundScore}
-              </div>
-            )}
-          </div>
-
-          {/* GameOver Stats*/}
-          {gameOver && (
-            <div className="items-center justify-center bg-gray-600/60 border-white h-32 w-64 rounded-md">
-              <div className="mt-2 text-white text-xl">
-                <GameOver finalScore={finalScore} />
-              </div>
-            </div>
-          )}
-
-          {/* iframe map in corner */}
-          <div
-            className="absolute bottom-2 right-2 transition-all duration-300 ease-in-out"
-            style={{
-              height: isHovering ? "500px" : "325px",
-              width: isHovering ? "500px" : "325px",
-            }}
-            onMouseEnter={() => setIsHovering(true)}
-            onMouseLeave={() => setIsHovering(false)}
-          >
-            <iframe
-              ref={iframeRef}
-              src="/geoguess-map.html"
-              style={{
-                height: "100%",
-                width: "100%",
-                border: 0,
-                borderRadius: 8,
-              }}
-              title="GeoGuesser Map"
-              sandbox="allow-scripts allow-same-origin allow-forms"
-            />
-            {guessCoords && !hasGuessed && (
-              <div style={MAP_BUTTON_SLOT}>
-                <Guess
-                  onGuess={() => {
-                    submitGuess(guessCoords[0], guessCoords[1]);
-                  }}
-                  hasGuessed={hasGuessed}
-                />
-              </div>
-            )}
-            {hasGuessed && !gameOver && (
-              <div style={MAP_BUTTON_SLOT}>
-                <Results
-                  onNextImage={() => {
-                    loadNextRound();
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+    </GameView>
   );
-
-
-
 }

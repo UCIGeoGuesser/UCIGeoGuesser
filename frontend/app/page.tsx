@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import TitleScreen from "./TitleScreen";
-import { extractChallengeId, getBackendUrl, apiHeaders } from "./lib/backend";
+import { extractChallengeId } from "./lib/challengeHelpers";
+import sendAPICall from "./lib/apiCalls";
+import { apiRouters } from "./lib/apiRoutes";
+import { gameConfig } from "./lib/gameConfig";
 
 export default function Page() {
   const router = useRouter();
@@ -14,20 +17,14 @@ export default function Page() {
     setCreatingChallenge(true);
     setJoinError(null);
     try {
-      const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/challenges`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ totalRounds: 8 }),
+      const data = await sendAPICall({
+        route: apiRouters.createChallenge,
+        payload: { totalRounds: gameConfig.maxRounds },
       });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `Server error: ${res.status}`);
-      }
-      const data = await res.json();
       router.push(`/challenge/${data.challengeId}?role=creator`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unable to create challenge.";
+      const message =
+        err instanceof Error ? err.message : "Unable to create challenge.";
       setJoinError(message);
       setCreatingChallenge(false);
     }
@@ -40,7 +37,7 @@ export default function Page() {
       return;
     }
     setJoinError(null);
-    router.push(`/challenge/${id}?role=invitee`);
+    router.push(`/challenge/${id}`);
   };
 
   return (

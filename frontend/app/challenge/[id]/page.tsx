@@ -1,33 +1,39 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import GameTimer from "../../GameTimer";
-import Guess from "../../guess";
-import Results from "../../results";
-import ChallengeResults from "../../ChallengeResults";
-import { MAP_BUTTON_SLOT } from "../../lib/layout";
 import {
-  apiHeaders,
-  getBackendUrl,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import GameTimer from "@/components/GameTimer";
+import GuessButton from "@/components/GuessButton";
+import ChallengeResults from "../../ChallengeResults";
+import {
   type ChallengePayload,
   type ChallengeRole,
   type GuessPayload,
   type RoundBreakdown,
-} from "../../lib/backend";
-
-const mapZoom = 14.5;
-const timeLimit = 60;
-const CAMPUS_CENTER: [number, number] = [33.645934402549955, -117.84272074704859];
+} from "../../lib/challengeHelpers";
+import sendAPICall from "@/app/lib/apiCalls";
+import { apiRouters } from "@/app/lib/apiRoutes";
+import { gameConfig } from "@/app/lib/gameConfig";
+import Loading from "@/app/loading";
 
 function storageKey(id: string, suffix: string) {
   return `ucigg:challenge:${id}:${suffix}`;
 }
 
 function resolveRole(id: string, queryRole: string | null): ChallengeRole {
-  if (queryRole === "creator" || queryRole === "invitee") return queryRole;
-  const stored = typeof window !== "undefined" ? localStorage.getItem(storageKey(id, "role")) : null;
+  const stored =
+    typeof window !== "undefined"
+      ? localStorage.getItem(storageKey(id, "role"))
+      : null;
   if (stored === "creator" || stored === "invitee") return stored;
+  if (queryRole === "creator") return "creator";
   return "invitee";
 }
 
@@ -35,14 +41,14 @@ function ChallengePageInner() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const rawId = params.id;
-  const challengeId = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
-  const backendUrl = getBackendUrl();
+  const challengeId = params.id;
 
   const [role, setRole] = useState<ChallengeRole>("invitee");
   const [challenge, setChallenge] = useState<ChallengePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"loading" | "share" | "playing" | "results">("loading");
+  const [phase, setPhase] = useState<
+    "loading" | "share" | "playing" | "results"
+  >("loading");
 
   const [roundIndex, setRoundIndex] = useState(0);
   const [guesses, setGuesses] = useState<GuessPayload[]>([]);
@@ -51,7 +57,9 @@ function ChallengePageInner() {
   const [pendingGuess, setPendingGuess] = useState<GuessPayload | null>(null);
   const [isHovering, setIsHovering] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [roundBreakdowns, setRoundBreakdowns] = useState<RoundBreakdown[] | undefined>();
+  const [roundBreakdowns, setRoundBreakdowns] = useState<
+    RoundBreakdown[] | undefined
+  >();
   const [copied, setCopied] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -65,40 +73,40 @@ function ChallengePageInner() {
   const images = challenge?.images ?? [];
   const maxRounds = images.length;
   const currentImage = images[roundIndex];
-  const opponentRole: ChallengeRole = role === "creator" ? "invitee" : "creator";
+  const opponentRole: ChallengeRole =
+    role === "creator" ? "invitee" : "creator";
 
   const sendToMap = (msg: object) => {
     iframeRef.current?.contentWindow?.postMessage(msg, "*");
   };
 
   const fetchChallenge = useCallback(async () => {
-    const res = await fetch(`${backendUrl}/api/challenges/${challengeId}`, {
-      headers: apiHeaders(),
-    });
-    if (res.status === 404) throw new Error("Challenge not found.");
-    if (!res.ok) {
-      const errData = await res.json().catch(() => null);
-      throw new Error(errData?.error || `Server error: ${res.status}`);
-    }
-    return (await res.json()) as ChallengePayload;
-  }, [backendUrl, challengeId]);
+    // const res = await fetch(`${backendUrl}/api/challenges/${challengeId}`, {
+    //   headers: apiHeaders(),
+    // });
+    // if (res.status === 404) throw new Error("Challenge not found.");
+    // if (!res.ok) {
+    //   const errData = await res.json().catch(() => null);
+    //   throw new Error(errData?.error || `Server error: ${res.status}`);
+    // }
+    // return (await res.json()) as ChallengePayload;
+    return (await sendAPICall({
+      route: apiRouters.getChallenge,
+      param: challengeId,
+    })) as ChallengePayload;
+  }, [challengeId]);
 
   useEffect(() => {
-    if (!challengeId) return;
     let cancelled = false;
     const boot = async () => {
       try {
         const resolvedRole = resolveRole(challengeId, searchParams.get("role"));
         localStorage.setItem(storageKey(challengeId, "role"), resolvedRole);
-        if (!cancelled) {
-          setRole(resolvedRole);
-          setLoadError(null);
-        }
+        if (!cancelled) setRole(resolvedRole);
 
         const data = await fetchChallenge();
         if (cancelled) return;
         setChallenge(data);
-        setLoadError(null);
 
         const myAttempt = data.attempts?.[resolvedRole];
         if (myAttempt?.completed) {
@@ -106,8 +114,12 @@ function ChallengePageInner() {
           return;
         }
 
-        const savedGuesses = sessionStorage.getItem(storageKey(challengeId, "guesses"));
-        const savedRound = sessionStorage.getItem(storageKey(challengeId, "round"));
+        const savedGuesses = sessionStorage.getItem(
+          storageKey(challengeId, "guesses"),
+        );
+        const savedRound = sessionStorage.getItem(
+          storageKey(challengeId, "round"),
+        );
         if (savedGuesses) {
           try {
             setGuesses(JSON.parse(savedGuesses));
@@ -117,7 +129,9 @@ function ChallengePageInner() {
         }
         if (savedRound) setRoundIndex(Number(savedRound) || 0);
 
-        const started = sessionStorage.getItem(storageKey(challengeId, "started"));
+        const started = sessionStorage.getItem(
+          storageKey(challengeId, "started"),
+        );
         if (resolvedRole === "creator" && !started) {
           setPhase("share");
         } else {
@@ -125,7 +139,9 @@ function ChallengePageInner() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load challenge.");
+          setLoadError(
+            err instanceof Error ? err.message : "Failed to load challenge.",
+          );
           setPhase("loading");
         }
       }
@@ -138,7 +154,9 @@ function ChallengePageInner() {
 
   useEffect(() => {
     if (phase !== "results") return;
-    const opponentDone = Boolean(challenge?.attempts?.[opponentRole]?.completed);
+    const opponentDone = Boolean(
+      challenge?.attempts?.[opponentRole]?.completed,
+    );
     if (opponentDone) return;
     const timer = setInterval(async () => {
       try {
@@ -154,7 +172,11 @@ function ChallengePageInner() {
   useEffect(() => {
     function onMessage(ev: MessageEvent) {
       const msg = ev.data || {};
-      if (msg?.type === "guess" && typeof msg.lat === "number" && typeof msg.lng === "number") {
+      if (
+        msg?.type === "guess" &&
+        typeof msg.lat === "number" &&
+        typeof msg.lng === "number"
+      ) {
         setGuessCoords([msg.lat, msg.lng]);
       }
     }
@@ -163,28 +185,39 @@ function ChallengePageInner() {
   }, []);
 
   const persistProgress = (nextGuesses: GuessPayload[], nextRound: number) => {
-    sessionStorage.setItem(storageKey(challengeId, "guesses"), JSON.stringify(nextGuesses));
+    sessionStorage.setItem(
+      storageKey(challengeId, "guesses"),
+      JSON.stringify(nextGuesses),
+    );
     sessionStorage.setItem(storageKey(challengeId, "round"), String(nextRound));
   };
 
   const finishChallenge = async (finalGuesses: GuessPayload[]) => {
     setSubmitting(true);
     try {
-      const res = await fetch(`${backendUrl}/api/challenges/${challengeId}/attempts`, {
-        method: "POST",
-        headers: apiHeaders(true),
-        body: JSON.stringify({ role, guesses: finalGuesses }),
+      // const res = await fetch(
+      //   `${backendUrl}/api/challenges/${challengeId}/attempts`,
+      //   {
+      //     method: "POST",
+      //     headers: apiHeaders(true),
+      //     body: JSON.stringify({ role, guesses: finalGuesses }),
+      //   },
+      // );
+      // const data = await res.json().catch(() => null);
+      // if (!res.ok) {
+      //   if (res.status === 409) {
+      //     const refreshed = await fetchChallenge();
+      //     setChallenge(refreshed);
+      //     setPhase("results");
+      //     return;
+      //   }
+      //   throw new Error(data?.error || `Server error: ${res.status}`);
+      // }
+      const data = await sendAPICall({
+        route: apiRouters.finishChallenge,
+        param: challengeId,
+        payload: { role: role, guesses: finalGuesses },
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        if (res.status === 409) {
-          const refreshed = await fetchChallenge();
-          setChallenge(refreshed);
-          setPhase("results");
-          return;
-        }
-        throw new Error(data?.error || `Server error: ${res.status}`);
-      }
       setRoundBreakdowns(data.roundBreakdowns);
       const refreshed = await fetchChallenge();
       setChallenge(refreshed);
@@ -192,7 +225,9 @@ function ChallengePageInner() {
       sessionStorage.removeItem(storageKey(challengeId, "round"));
       setPhase("results");
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : "Failed to submit challenge.");
+      setLoadError(
+        err instanceof Error ? err.message : "Failed to submit challenge.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +238,10 @@ function ChallengePageInner() {
     advancingRef.current = true;
 
     const nextGuesses = maybeGuess
-      ? [...guesses.filter((g) => g.displayOrder !== maybeGuess.displayOrder), maybeGuess]
+      ? [
+          ...guesses.filter((g) => g.displayOrder !== maybeGuess.displayOrder),
+          maybeGuess,
+        ]
       : guesses;
     setGuesses(nextGuesses);
     setHasGuessed(true);
@@ -221,7 +259,11 @@ function ChallengePageInner() {
     setGuessCoords(null);
     setHasGuessed(false);
     setPendingGuess(null);
-    sendToMap({ type: "clear", center: CAMPUS_CENTER, zoom: mapZoom });
+    sendToMap({
+      type: "clear",
+      center: gameConfig.mapCenter,
+      zoom: gameConfig.mapZoom,
+    });
     advancingRef.current = false;
   };
 
@@ -254,7 +296,7 @@ function ChallengePageInner() {
       if (event.code === "Space" && guessCoords && !hasGuessed) {
         event.preventDefault();
         confirmGuess();
-      } else if (event.code === "Space" && hasGuessed && !submitting) {
+      } else if (event.code === "Enter" && hasGuessed && !submitting) {
         event.preventDefault();
         goNext();
       }
@@ -277,7 +319,9 @@ function ChallengePageInner() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6 text-center">
         <div className="bg-gray-800 border border-red-500/30 rounded-xl p-8 max-w-md">
-          <h1 className="text-2xl font-bold text-red-400 mb-2">Couldn’t load challenge</h1>
+          <h1 className="text-2xl font-bold text-red-400 mb-2">
+            Couldn’t load challenge
+          </h1>
           <p className="text-gray-300 text-sm mb-6">{loadError}</p>
           <button
             onClick={() => router.push("/")}
@@ -291,11 +335,7 @@ function ChallengePageInner() {
   }
 
   if (phase === "loading" || !challenge) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (phase === "share") {
@@ -303,9 +343,10 @@ function ChallengePageInner() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-yellow-300 to-blue-950 text-white p-6 text-center">
         <h1 className="text-4xl font-extrabold mb-3">Challenge created</h1>
         <p className="max-w-md mb-4 text-white/90">
-          Send this link to a friend. You both get the same {maxRounds} photos. Scores compare when you both finish.
+          Send this link to a friend. You both get the same {maxRounds} photos.
+          Scores compare when you both finish.
         </p>
-        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm max-w-lg mb-3 overflow-x-auto whitespace-nowrap">
+        <p className="bg-black/40 rounded-xl px-4 py-3 text-sm break-all max-w-lg mb-3">
           {shareUrl}
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -347,7 +388,9 @@ function ChallengePageInner() {
     <div
       className="min-h-screen w-full relative"
       style={{
-        backgroundImage: currentImage ? `url(${currentImage.imageUrl})` : undefined,
+        backgroundImage: currentImage
+          ? `url(${currentImage.imageUrl})`
+          : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#0f172a",
@@ -361,7 +404,9 @@ function ChallengePageInner() {
 
       <div className="absolute top-2 left-2 bg-gray-500/30 px-2 py-1 rounded-2xl shadow-xl text-center w-full max-w-xs">
         <div className="flex justify-between items-center">
-          <h1 className="text-white font-extrabold text-2xl drop-shadow">1v1 Challenge</h1>
+          <h1 className="text-white font-extrabold text-2xl drop-shadow">
+            1v1 Challenge
+          </h1>
           <div className="text-white text-lg">
             <span className="font-bold">Round: </span>
             {Math.min(roundIndex + 1, maxRounds)}/{maxRounds}
@@ -371,7 +416,7 @@ function ChallengePageInner() {
           <div className="mt-2 text-white">
             <GameTimer
               key={roundIndex}
-              timeLimitInSeconds={timeLimit}
+              timeLimitInSeconds={gameConfig.timeLimit}
               onEnd={() => {
                 if (!guessCoords) skipRound();
                 else confirmGuess();
@@ -379,8 +424,19 @@ function ChallengePageInner() {
             />
           </div>
         )}
+        {hasGuessed && !submitting && (
+          <button
+            onClick={goNext}
+            className="mt-2 bg-gray text-white font-bold py-3 px-6 rounded-xl hover:bg-green-500/30 drop-shadow-[1px_1px_0px_black]"
+          >
+            {roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
+          </button>
+        )}
         {role === "creator" && (
-          <button onClick={copyLink} className="mt-2 text-xs text-white/90 underline block mx-auto">
+          <button
+            onClick={copyLink}
+            className="mt-2 text-xs text-white/90 underline block mx-auto"
+          >
             {copied ? "Link copied" : "Copy invite link"}
           </button>
         )}
@@ -402,16 +458,21 @@ function ChallengePageInner() {
           title="GeoGuesser Map"
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
-        {guessCoords && !hasGuessed && (
-          <div style={MAP_BUTTON_SLOT}>
-            <Guess onGuess={confirmGuess} hasGuessed={hasGuessed} />
-          </div>
-        )}
-        {hasGuessed && !submitting && (
-          <div style={MAP_BUTTON_SLOT}>
-            <Results
-              onNextImage={goNext}
-              label={roundIndex + 1 >= maxRounds ? "Finish & compare" : "Next Image"}
+        {(hasGuessed || guessCoords) && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "10%",
+              left: "47%",
+              transform: "translateX(-25%)",
+              fontSize: 20,
+              zIndex: 400,
+            }}
+          >
+            <GuessButton
+              onGuess={confirmGuess}
+              moveToNextRound={goNext}
+              hasGuessed={hasGuessed}
             />
           </div>
         )}
@@ -422,13 +483,7 @@ function ChallengePageInner() {
 
 export default function ChallengePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<Loading />}>
       <ChallengePageInner />
     </Suspense>
   );
